@@ -815,79 +815,245 @@ const Home = makeIcon([["path", {
     });
     return latest > 0 ? latest : null;
   }
-
-  // 5월 실적 초기 데이터 (embedded-data가 없을 때 폴백)
-  const INITIAL_DATA = {"__REDACTED_FOR_SECURITY__";
   function readEmbeddedData() {
     try {
-      if (typeof document === 'undefined') {
-        return {
-          ceo: {
-            years: {
-              '2026': INITIAL_DATA.ceo
-            },
-            meta: {
-              year: 2026,
-              refMonth: 5
-            }
-          },
-          inst: {
-            years: {
-              '2026': INITIAL_DATA.inst
-            },
-            meta: {
-              year: 2026,
-              refMonth: 5
-            }
-          }
-        };
+      var el = typeof document !== 'undefined' ? document.getElementById('embedded-data') : null;
+      if (el && el.textContent && el.textContent.trim()) {
+        var parsed = JSON.parse(el.textContent);
+        // 실제 연도 실적 데이터가 들어있을 때만 사용 (빈 템플릿 {indicators:null,years:{},meta:null}은 무시)
+        var hasCeo = parsed && parsed.ceo && parsed.ceo.years && Object.keys(parsed.ceo.years).length > 0;
+        var hasInst = parsed && parsed.inst && parsed.inst.years && Object.keys(parsed.inst.years).length > 0;
+        if (hasCeo || hasInst) return parsed;
       }
-      const el = document.getElementById('embedded-data');
-      if (!el || !el.textContent.trim()) {
-        return {
-          ceo: {
-            years: {
-              '2026': INITIAL_DATA.ceo
+    } catch (e) {}
+    return {
+      ceo: {
+        years: {
+          '2026': {
+            "P-01": {
+              "actual": {
+                "3": 82924,
+                "4": 121106,
+                "5": 144344
+              },
+              "forecast": {
+                "3": 402728,
+                "4": 402728,
+                "5": 402728
+              }
             },
-            meta: {
-              year: 2026,
-              refMonth: 5
-            }
-          },
-          inst: {
-            years: {
-              '2026': INITIAL_DATA.inst
+            "P-02": {
+              "actual": {
+                "3": 0,
+                "4": 4872,
+                "5": 4872
+              },
+              "forecast": {
+                "3": 10063,
+                "4": 10063,
+                "5": 10063
+              }
             },
-            meta: {
-              year: 2026,
-              refMonth: 5
+            "P-03": {
+              "actual": {
+                "3": 333113,
+                "4": 443222,
+                "5": 536862
+              },
+              "forecast": {
+                "3": 1324868,
+                "4": 1328219,
+                "5": 1328219
+              }
+            },
+            "P-04": {
+              "actual": {
+                "3": 99.4,
+                "4": 99,
+                "5": 99
+              },
+              "forecast": {
+                "3": 99.4,
+                "4": 99.4,
+                "5": 99.4
+              }
+            },
+            "P-05-1": {
+              "actual": {
+                "3": 22.1
+              },
+              "forecast": {
+                "3": 38.9
+              }
+            },
+            "P-05-2": {
+              "actual": {
+                "3": 37.42,
+                "4": 38.21,
+                "5": 38.87
+              },
+              "forecast": {
+                "3": 45.72,
+                "4": 45.72,
+                "5": 45.72
+              }
+            },
+            "P-06": {
+              "actual": {},
+              "forecast": {}
+            },
+            "P-07": {
+              "actual": {},
+              "forecast": {}
+            },
+            "P-08-1": {
+              "actual": {
+                "3": 115,
+                "4": 115,
+                "5": 115
+              },
+              "forecast": {
+                "3": 115,
+                "4": 115,
+                "5": 115
+              }
+            },
+            "P-08-2": {
+              "actual": {
+                "3": 15.7,
+                "4": 15.7,
+                "5": 15.7
+              },
+              "forecast": {
+                "3": 15.7,
+                "4": 15.7,
+                "5": 15.7
+              }
+            },
+            "P-08-3": {
+              "actual": {
+                "3": 0,
+                "4": 0,
+                "5": 0
+              },
+              "forecast": {
+                "3": 0,
+                "4": 0,
+                "5": 0
+              }
+            },
+            "P-09": {
+              "actual": {
+                "3": 21.8,
+                "4": 26.2,
+                "5": 45.4
+              },
+              "forecast": {
+                "3": 100,
+                "4": 100,
+                "5": 100
+              }
             }
-          }
-        };
-      }
-      return JSON.parse(el.textContent || '{}');
-    } catch (e) {
-      return {
-        ceo: {
-          years: {
-            '2026': INITIAL_DATA.ceo
-          },
-          meta: {
-            year: 2026,
-            refMonth: 5
           }
         },
-        inst: {
-          years: {
-            '2026': INITIAL_DATA.inst
-          },
-          meta: {
-            year: 2026,
-            refMonth: 5
-          }
+        meta: {
+          year: 2026,
+          refMonth: 5
         }
-      };
-    }
+      },
+      inst: {
+        years: {
+          '2026': {
+            "5": {
+              "actual": {
+                "5": 986
+              },
+              "forecast": {}
+            },
+            "6": {
+              "actual": {
+                "5": 4872
+              },
+              "forecast": {}
+            },
+            "7": {
+              "actual": {
+                "5": 70000
+              },
+              "forecast": {}
+            },
+            "1-1": {
+              "actual": {
+                "5": 750000
+              },
+              "forecast": {}
+            },
+            "1-2": {
+              "actual": {
+                "5": 440000
+              },
+              "forecast": {}
+            },
+            "2-1": {
+              "actual": {
+                "5": 0.192
+              },
+              "forecast": {}
+            },
+            "2-2": {
+              "actual": {
+                "5": 75.2
+              },
+              "forecast": {}
+            },
+            "3-1": {
+              "actual": {},
+              "forecast": {}
+            },
+            "3-2": {
+              "actual": {
+                "5": 0
+              },
+              "forecast": {}
+            },
+            "3-3": {
+              "actual": {
+                "5": 0.578
+              },
+              "forecast": {}
+            },
+            "4-1": {
+              "actual": {
+                "5": 2.5
+              },
+              "forecast": {}
+            },
+            "4-2": {
+              "actual": {
+                "5": 7.4
+              },
+              "forecast": {}
+            },
+            "8-1": {
+              "actual": {
+                "5": 283299
+              },
+              "forecast": {}
+            },
+            "8-2": {
+              "actual": {
+                "5": 0.201
+              },
+              "forecast": {}
+            }
+          }
+        },
+        meta: {
+          year: 2026,
+          refMonth: 5
+        }
+      }
+    };
   }
 
   // ─────────────────────────────────────────────────────────────
