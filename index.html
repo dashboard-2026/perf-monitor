@@ -1415,7 +1415,14 @@ const Home = makeIcon([["path", {
       let loadedData = {};
       try {
         const r = await appStorage.get(`ceo:data:${y}`, true);
-        if (r?.value) loadedData = JSON.parse(r.value);else {
+        if (r?.value) {
+          const parsed = JSON.parse(r.value);
+          // 실제 실적 데이터가 있는 경우만 사용 (빈 객체 {} 면 INITIAL_DATA 폴백)
+          if (Object.keys(parsed).length > 0) loadedData = parsed;else {
+            const emb = readEmbeddedData();
+            if (emb?.ceo?.years?.[String(y)]) loadedData = emb.ceo.years[String(y)];
+          }
+        } else {
           const emb = readEmbeddedData();
           if (emb?.ceo?.years?.[String(y)]) loadedData = emb.ceo.years[String(y)];
         }
@@ -2599,7 +2606,13 @@ const Home = makeIcon([["path", {
       let loadedData = {};
       try {
         const r = await appStorage.get(`inst:data:${y}`, true);
-        if (r?.value) loadedData = JSON.parse(r.value);else {
+        if (r?.value) {
+          const parsed = JSON.parse(r.value);
+          if (Object.keys(parsed).length > 0) loadedData = parsed;else {
+            const emb = readEmbeddedData();
+            if (emb?.inst?.years?.[String(y)]) loadedData = emb.inst.years[String(y)];
+          }
+        } else {
           const emb = readEmbeddedData();
           if (emb?.inst?.years?.[String(y)]) loadedData = emb.inst.years[String(y)];
         }
