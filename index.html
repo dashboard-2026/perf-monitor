@@ -1198,7 +1198,10 @@ const Home = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-slate-400 text-sm font-medium tracking-widest mb-3"
     }, "HUG \uC8FC\uD0DD\uB3C4\uC2DC\uBCF4\uC99D\uACF5\uC0AC"), /*#__PURE__*/React.createElement("h1", {
-      onClick: handleTitleTap,
+      onPointerDown: e => {
+        e.preventDefault();
+        handleTitleTap();
+      },
       className: "text-3xl md:text-4xl font-bold text-white tracking-tight",
       style: {
         userSelect: 'none',
