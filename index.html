@@ -2631,8 +2631,11 @@ const Home = makeIcon([["path", {
       setHighlightedCode(code);
       setTimeout(() => setHighlightedCode(null), 2500);
       setTimeout(() => {
-        const el = document.getElementById(`ceo-detail-row-${code}`);
-        if (el && el.scrollIntoView) el.scrollIntoView({
+        // PC 표 행과 모바일 카드 중 화면에 보이는 쪽으로 스크롤
+        const row = document.getElementById(`ceo-detail-row-${code}`);
+        const card = document.getElementById(`ceo-mcard-${code}`);
+        const target = row && row.offsetParent !== null ? row : card && card.offsetParent !== null ? card : row || card;
+        if (target && target.scrollIntoView) target.scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         });
@@ -4011,8 +4014,10 @@ const Home = makeIcon([["path", {
       setHighlightedCode(code);
       setTimeout(() => setHighlightedCode(null), 2500);
       setTimeout(() => {
-        const el = document.getElementById(`inst-detail-row-${code}`);
-        if (el && el.scrollIntoView) el.scrollIntoView({
+        const row = document.getElementById(`inst-detail-row-${code}`);
+        const card = document.getElementById(`inst-mcard-${code}`);
+        const target = row && row.offsetParent !== null ? row : card && card.offsetParent !== null ? card : row || card;
+        if (target && target.scrollIntoView) target.scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         });
