@@ -2981,7 +2981,38 @@ const Presentation = makeIcon([["path", {
     }] : [])];
     return /*#__PURE__*/React.createElement("div", {
       className: "min-h-screen bg-slate-50 text-slate-900"
-    }, /*#__PURE__*/React.createElement("style", null, `@media print { @page{size:A4 landscape;margin:1cm} html,body{background:white!important} .no-print{display:none!important} .print-only{display:block!important} *,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important} .avoid-break{page-break-inside:avoid} main{padding:0!important} } .print-only{display:none}`), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("style", null, `@media print {
+  @page { size:A4 landscape; margin:1.2cm 1cm; }
+  html,body { background:white!important; }
+  .no-print { display:none!important; }
+  .print-only { display:block!important; }
+  *,*::before,*::after { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  main { padding:0!important; }
+
+  /* 신호등: 패널 전체 avoid 제거, 성과목표 그룹 단위로 끊김 방지 */
+  .print-sig-panel { break-inside:auto!important; page-break-inside:auto!important; }
+  .print-sig-group { break-inside:avoid!important; page-break-inside:avoid!important; }
+  /* 신호등 카드: 3열 고정 */
+  .print-sig-grid { display:grid!important; grid-template-columns:repeat(3,1fr)!important; }
+
+  /* 상세표: 행 단위로 자연스럽게 넘기되, 펼침 행은 끊기지 않게 */
+  .print-table-wrap { break-inside:auto!important; }
+  .print-exp-row { break-inside:avoid!important; page-break-inside:avoid!important; }
+  /* 펼침 차트: 인쇄 시 고정 높이 */
+  .print-exp-chart { height:160px!important; }
+  .print-exp-chart .recharts-responsive-container { width:100%!important; height:160px!important; }
+  .print-exp-chart svg { width:100%!important; height:160px!important; }
+
+  /* KPI 카드: 2행으로 자연스럽게 */
+  .print-kpi-grid { break-inside:auto!important; }
+
+  /* 차트 패널: 한 페이지 내 */
+  .avoid-break { break-inside:avoid!important; page-break-inside:avoid!important; }
+
+  /* 애니메이션 제거 */
+  .hug-rise, .hug-pulse-warn, .hug-pulse-alert { animation:none!important; }
+  button:active { transform:none!important; }
+} .print-only{display:none}`), /*#__PURE__*/React.createElement("div", {
       className: "print-only px-6 pt-4 pb-3 border-b-2 border-slate-800"
     }, /*#__PURE__*/React.createElement("h1", {
       className: "text-xl font-bold"
@@ -3260,7 +3291,7 @@ const Presentation = makeIcon([["path", {
     }, "[", a.code, "] ", a.name), /*#__PURE__*/React.createElement("span", {
       className: "text-amber-700 font-bold"
     }, a.achActual?.toFixed(1), "%")))))), /*#__PURE__*/React.createElement("div", {
-      className: "bg-white border rounded-lg p-5 avoid-break"
+      className: "bg-white border rounded-lg p-5 print-sig-panel"
     }, /*#__PURE__*/React.createElement("h3", {
       className: "font-semibold text-slate-800 mb-4 flex items-center gap-2"
     }, /*#__PURE__*/React.createElement(Target, {
@@ -3272,11 +3303,12 @@ const Presentation = makeIcon([["path", {
     }, CEO_GOALS.map(g => {
       const inds = indicatorStatus.filter(i => i.goal === g);
       return /*#__PURE__*/React.createElement("div", {
-        key: g
+        key: g,
+        className: "print-sig-group"
       }, /*#__PURE__*/React.createElement("div", {
         className: "text-xs font-medium text-slate-500 mb-2"
       }, "\u25B6 ", g), /*#__PURE__*/React.createElement("div", {
-        className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
+        className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 print-sig-grid"
       }, inds.map((i, ii) => {
         const c = statusColors[i.status];
         const annualPct = calcAnnualProgress(i.currentActual, i.annualTarget, i.direction);
@@ -3319,7 +3351,7 @@ const Presentation = makeIcon([["path", {
         }, annualPct === null ? '—' : `${annualPct.toFixed(0)}%`))));
       })));
     }))), /*#__PURE__*/React.createElement("div", {
-      className: "bg-white border rounded-lg overflow-hidden avoid-break"
+      className: "bg-white border rounded-lg overflow-hidden print-table-wrap"
     }, /*#__PURE__*/React.createElement("div", {
       className: "p-4 border-b flex items-center justify-between"
     }, /*#__PURE__*/React.createElement("h3", {
@@ -3398,7 +3430,7 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("span", {
         className: `inline-block px-2 py-0.5 text-xs rounded ${c.bg} text-white`
       }, c.label))), isExp && /*#__PURE__*/React.createElement("tr", {
-        className: "bg-slate-50 border-b"
+        className: "bg-slate-50 border-b print-exp-row"
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 10,
         className: "px-4 py-4 hug-expand"
@@ -3424,7 +3456,9 @@ const Presentation = makeIcon([["path", {
         className: "text-slate-700"
       }, cmt.action))), /*#__PURE__*/React.createElement("div", {
         className: "text-xs font-medium text-slate-600 mb-2"
-      }, "\uC6D4\uBCC4 \uB204\uC801 \uCD94\uC774"), /*#__PURE__*/React.createElement(ResponsiveContainer, {
+      }, "\uC6D4\uBCC4 \uB204\uC801 \uCD94\uC774"), /*#__PURE__*/React.createElement("div", {
+        className: "print-exp-chart"
+      }, /*#__PURE__*/React.createElement(ResponsiveContainer, {
         width: "100%",
         height: 180
       }, /*#__PURE__*/React.createElement(LineChart, {
@@ -3467,7 +3501,7 @@ const Presentation = makeIcon([["path", {
           r: 3
         },
         connectNulls: true
-      }))), /*#__PURE__*/React.createElement("div", {
+      })))), /*#__PURE__*/React.createElement("div", {
         className: "overflow-x-auto mt-3"
       }, /*#__PURE__*/React.createElement("table", {
         className: "w-full text-xs border-t"
@@ -4630,7 +4664,38 @@ const Presentation = makeIcon([["path", {
     }] : [])];
     return /*#__PURE__*/React.createElement("div", {
       className: "min-h-screen bg-slate-50 text-slate-900"
-    }, /*#__PURE__*/React.createElement("style", null, `@media print { @page{size:A4 landscape;margin:1cm} html,body{background:white!important} .no-print{display:none!important} .print-only{display:block!important} *,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important} .avoid-break{page-break-inside:avoid} main{padding:0!important} } .print-only{display:none}`), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("style", null, `@media print {
+  @page { size:A4 landscape; margin:1.2cm 1cm; }
+  html,body { background:white!important; }
+  .no-print { display:none!important; }
+  .print-only { display:block!important; }
+  *,*::before,*::after { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  main { padding:0!important; }
+
+  /* 신호등: 패널 전체 avoid 제거, 성과목표 그룹 단위로 끊김 방지 */
+  .print-sig-panel { break-inside:auto!important; page-break-inside:auto!important; }
+  .print-sig-group { break-inside:avoid!important; page-break-inside:avoid!important; }
+  /* 신호등 카드: 3열 고정 */
+  .print-sig-grid { display:grid!important; grid-template-columns:repeat(3,1fr)!important; }
+
+  /* 상세표: 행 단위로 자연스럽게 넘기되, 펼침 행은 끊기지 않게 */
+  .print-table-wrap { break-inside:auto!important; }
+  .print-exp-row { break-inside:avoid!important; page-break-inside:avoid!important; }
+  /* 펼침 차트: 인쇄 시 고정 높이 */
+  .print-exp-chart { height:160px!important; }
+  .print-exp-chart .recharts-responsive-container { width:100%!important; height:160px!important; }
+  .print-exp-chart svg { width:100%!important; height:160px!important; }
+
+  /* KPI 카드: 2행으로 자연스럽게 */
+  .print-kpi-grid { break-inside:auto!important; }
+
+  /* 차트 패널: 한 페이지 내 */
+  .avoid-break { break-inside:avoid!important; page-break-inside:avoid!important; }
+
+  /* 애니메이션 제거 */
+  .hug-rise, .hug-pulse-warn, .hug-pulse-alert { animation:none!important; }
+  button:active { transform:none!important; }
+} .print-only{display:none}`), /*#__PURE__*/React.createElement("div", {
       className: "print-only px-6 pt-4 pb-3 border-b-2 border-slate-800"
     }, /*#__PURE__*/React.createElement("h1", {
       className: "text-xl font-bold"
@@ -4825,7 +4890,7 @@ const Presentation = makeIcon([["path", {
     }, "[", a.code, "] ", a.name), /*#__PURE__*/React.createElement("span", {
       className: "text-amber-700 font-bold"
     }, a.achActual?.toFixed(1), "%")))))), /*#__PURE__*/React.createElement("div", {
-      className: "bg-white border rounded-lg p-5 avoid-break"
+      className: "bg-white border rounded-lg p-5 print-sig-panel"
     }, /*#__PURE__*/React.createElement("h3", {
       className: "font-semibold text-slate-800 mb-4 flex items-center gap-2"
     }, /*#__PURE__*/React.createElement(Target, {
@@ -4838,13 +4903,14 @@ const Presentation = makeIcon([["path", {
       const inds = indicatorStatus.filter(i => i.business === biz);
       const bizWeight = inds.reduce((s, i) => s + (i.weight || 0), 0);
       return /*#__PURE__*/React.createElement("div", {
-        key: biz
+        key: biz,
+        className: "print-sig-group"
       }, /*#__PURE__*/React.createElement("div", {
         className: "text-xs font-medium text-slate-500 mb-2 flex items-center gap-2"
       }, "\u25B6 ", biz, " ", /*#__PURE__*/React.createElement("span", {
         className: "text-slate-400"
       }, "(", bizWeight, "\uC810)")), /*#__PURE__*/React.createElement("div", {
-        className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2"
+        className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 print-sig-grid"
       }, inds.map((i, ii) => {
         const c = statusColors[i.status];
         const annualPct = calcAnnualProgress(i.currentActual, i.annualTarget, i.direction, i.achievementBands);
@@ -4887,7 +4953,7 @@ const Presentation = makeIcon([["path", {
         }, annualPct === null ? '—' : `${annualPct.toFixed(0)}%`))));
       })));
     }))), /*#__PURE__*/React.createElement("div", {
-      className: "bg-white border rounded-lg overflow-hidden avoid-break"
+      className: "bg-white border rounded-lg overflow-hidden print-table-wrap"
     }, /*#__PURE__*/React.createElement("div", {
       className: "p-4 border-b flex items-center justify-between"
     }, /*#__PURE__*/React.createElement("h3", {
@@ -4968,7 +5034,7 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("span", {
         className: `inline-block px-2 py-0.5 text-xs rounded ${c.bg} text-white`
       }, c.label))), isExp && /*#__PURE__*/React.createElement("tr", {
-        className: "bg-slate-50 border-b"
+        className: "bg-slate-50 border-b print-exp-row"
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 10,
         className: "px-4 py-4 hug-expand"
@@ -4994,7 +5060,9 @@ const Presentation = makeIcon([["path", {
         className: "text-slate-700"
       }, cmt.action))), /*#__PURE__*/React.createElement("div", {
         className: "text-xs font-medium text-slate-600 mb-2"
-      }, "\uC6D4\uBCC4 \uB204\uC801 \uCD94\uC774"), /*#__PURE__*/React.createElement(ResponsiveContainer, {
+      }, "\uC6D4\uBCC4 \uB204\uC801 \uCD94\uC774"), /*#__PURE__*/React.createElement("div", {
+        className: "print-exp-chart"
+      }, /*#__PURE__*/React.createElement(ResponsiveContainer, {
         width: "100%",
         height: 180
       }, /*#__PURE__*/React.createElement(LineChart, {
@@ -5037,7 +5105,7 @@ const Presentation = makeIcon([["path", {
           r: 3
         },
         connectNulls: true
-      }))), /*#__PURE__*/React.createElement("div", {
+      })))), /*#__PURE__*/React.createElement("div", {
         className: "overflow-x-auto mt-3"
       }, /*#__PURE__*/React.createElement("table", {
         className: "w-full text-xs border-t"
