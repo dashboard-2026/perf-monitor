@@ -3975,6 +3975,31 @@ const Presentation = makeIcon([["path", {
         alert('1월은 직전 달이 없습니다.');
         return;
       }
+      // 하위 상품이 있는 지표: 상품별로 직전 달 복사 → 부모 자동 합산 (한 번에 갱신)
+      if (ind && ind.children) {
+        const prevVals = ind.children.map(ch => localData[selectedCode]?.children?.[ch.code]?.[editMode]?.[refMonth - 1]);
+        if (prevVals.every(v => v === undefined || v === null)) {
+          alert(`${refMonth - 1}월 ${editMode === 'actual' ? '실적' : '전망치'} 값이 없습니다.`);
+          return;
+        }
+        if (!confirm(`${refMonth}월 하위 상품 값을 ${refMonth - 1}월 값으로 덮어쓸까요?`)) return;
+        const nd = JSON.parse(JSON.stringify(localData));
+        if (!nd[selectedCode]) nd[selectedCode] = { actual: {}, forecast: {}, children: {} };
+        if (!nd[selectedCode].children) nd[selectedCode].children = {};
+        ind.children.forEach((ch, idx) => {
+          const pv = prevVals[idx];
+          if (!nd[selectedCode].children[ch.code]) nd[selectedCode].children[ch.code] = { actual: {}, forecast: {} };
+          if (!nd[selectedCode].children[ch.code][editMode]) nd[selectedCode].children[ch.code][editMode] = {};
+          if (pv === undefined || pv === null) delete nd[selectedCode].children[ch.code][editMode][refMonth];
+          else nd[selectedCode].children[ch.code][editMode][refMonth] = pv;
+        });
+        // 부모 자동 합산 (refMonth만)
+        const sum = ind.children.reduce((acc, ch) => { const cv = nd[selectedCode].children[ch.code]?.[editMode]?.[refMonth]; return acc + (typeof cv === 'number' ? cv : 0); }, 0);
+        if (!nd[selectedCode][editMode]) nd[selectedCode][editMode] = {};
+        if (sum > 0) nd[selectedCode][editMode][refMonth] = sum; else delete nd[selectedCode][editMode][refMonth];
+        setLocalData(nd);
+        return;
+      }
       const prev = localData[selectedCode]?.[editMode]?.[refMonth - 1];
       if (prev === undefined || prev === null) {
         alert(`${refMonth - 1}월 ${editMode === 'actual' ? '실적' : '전망치'} 값이 없습니다.`);
@@ -4099,7 +4124,8 @@ const Presentation = makeIcon([["path", {
       className: "px-2 py-2 font-medium text-slate-600 bg-slate-50"
     }, "\uB2EC\uC131\uB960(%)"), MONTHS.map((m, i) => {
       const v = localData[selectedCode]?.[editMode]?.[m];
-      const a = calcAchievement(v, monthlyTargets[i], ind.direction, ind.achievementBands);
+      const tgt = editMode === 'forecast' ? ind.annualTarget : monthlyTargets[i];
+      const a = calcAchievement(v, tgt, ind.direction, ind.achievementBands);
       const s = getStatus(a);
       return /*#__PURE__*/React.createElement("td", {
         key: m,
@@ -5673,7 +5699,8 @@ const Presentation = makeIcon([["path", {
       className: "px-2 py-2 font-medium text-slate-600 bg-slate-50"
     }, "\uB2EC\uC131\uB960(%)"), MONTHS.map((m, i) => {
       const v = localData[selectedCode]?.[editMode]?.[m];
-      const a = calcAchievement(v, monthlyTargets[i], ind.direction, ind.achievementBands);
+      const tgt = editMode === 'forecast' ? ind.annualTarget : monthlyTargets[i];
+      const a = calcAchievement(v, tgt, ind.direction, ind.achievementBands);
       const s = getStatus(a);
       return /*#__PURE__*/React.createElement("td", {
         key: m,
