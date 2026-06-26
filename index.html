@@ -563,25 +563,65 @@ const Presentation = makeIcon([["path", {
   } = RC;
   // XLSX는 window.XLSX 전역으로 존재
 
-  // ── 저장소: 브라우저 localStorage 기반 (외부 서비스 불필요) ──
+  // ── 저장소: 서버판은 Supabase REST, 내부망판은 localStorage 자동 폴백 ──
   const STORAGE_PREFIX = 'perf_dashboard:';
+  const SB_URL = 'https://iswrrkelwqrdqnuhhaih.supabase.co';
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzd3Jya2Vsd3FyZHFudWhoYWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDYxMzYsImV4cCI6MjA5NzE4MjEzNn0.jfzDTMRv-aw_WgK2-LKeFbbOHJ-sd7cUk8thcoTKlX8';
+  // 키/URL 치환이 됐으면(=서버판) Supabase 모드, 아니면 localStorage 모드
+  const SB_ENABLED = SB_URL.indexOf('__') === -1 && SB_ANON.indexOf('__') === -1;
+  // 키에 ':meta:' 포함 → perf_meta 테이블, 아니면 perf_data
+  function sbTable(key) { return key.indexOf(':meta:') !== -1 ? 'perf_meta' : 'perf_data'; }
   const appStorage = {
     async get(key) {
+      if (SB_ENABLED) {
+        try {
+          const tbl = sbTable(key);
+          const url = `${SB_URL}/rest/v1/${tbl}?id=eq.${encodeURIComponent(key)}&select=payload`;
+          const res = await fetch(url, { headers: { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON } });
+          if (!res.ok) return null;
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].payload != null) {
+            const p = rows[0].payload;
+            return { value: typeof p === 'string' ? p : JSON.stringify(p) };
+          }
+          return null;
+        } catch (e) { return null; }
+      }
       try {
         const v = localStorage.getItem(STORAGE_PREFIX + key);
-        return v === null ? null : {
-          value: v
-        };
-      } catch (e) {
-        return null;
-      }
+        return v === null ? null : { value: v };
+      } catch (e) { return null; }
     },
     async set(key, value) {
+      if (SB_ENABLED) {
+        try {
+          const tbl = sbTable(key);
+          const url = `${SB_URL}/rest/v1/${tbl}`;
+          const body = JSON.stringify({ id: key, payload: JSON.parse(value), updated_at: new Date().toISOString() });
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              apikey: SB_ANON,
+              Authorization: 'Bearer ' + SB_ANON,
+              'Content-Type': 'application/json',
+              Prefer: 'resolution=merge-duplicates'
+            },
+            body
+          });
+          if (!res.ok) {
+            const t = await res.text();
+            alert('서버 저장 실패: ' + res.status + ' ' + t.slice(0, 120));
+            return null;
+          }
+          return { value };
+        } catch (e) {
+          alert('서버 저장 중 오류: ' + (e && e.message ? e.message : e));
+          return null;
+        }
+      }
       try {
         localStorage.setItem(STORAGE_PREFIX + key, value);
-        return {
-          value
-        };
+        return { value };
       } catch (e) {
         alert('저장에 실패했습니다(저장 공간 부족 또는 브라우저 제한).');
         return null;
@@ -1617,6 +1657,8 @@ const Presentation = makeIcon([["path", {
         const result = await res.json();
         if (result.valid) {
           sessionStorage.setItem('hug_auth', '1');
+          sessionStorage.setItem('hug_role', result.role || 'viewer');
+          sessionStorage.setItem('hug_user', username.trim());
           onUnlock();
         } else if (result.expired) {
           setOtpErr('등록 기간이 만료됐습니다. 관리자에게 문의하세요.');
@@ -2397,9 +2439,12 @@ const Presentation = makeIcon([["path", {
     }))));
   }
   function App() {
-    const [auth, setAuth] = useState(() => sessionStorage.getItem('hug_auth') === '1');
+    // 내부망판(OTP_ENABLED=false): 잠금 없이 바로 통과 + 모든 기능 노출
+    const [auth, setAuth] = useState(() => !OTP_ENABLED || sessionStorage.getItem('hug_auth') === '1');
     const [screen, setScreen] = useState('home'); // 'home' | 'ceo' | 'inst'
-    const [editMode, setEditMode] = useState(false); // 숨김 입력모드 (제목 5연타로 토글)
+    const [editMode, setEditMode] = useState(!OTP_ENABLED); // 내부망은 항상 편집 가능, 서버판은 제목 3연타
+    // 지표관리 권한: 내부망은 항상 true, 서버판은 role==='admin'만
+    const canManage = !OTP_ENABLED || sessionStorage.getItem('hug_role') === 'admin';
 
     const goHome = () => setScreen('home');
     const globalStyle = /*#__PURE__*/React.createElement("style", null, `
@@ -2427,10 +2472,12 @@ const Presentation = makeIcon([["path", {
       goHome: goHome
     }) : screen === 'ceo' ? /*#__PURE__*/React.createElement(CeoApp, {
       goHome: goHome,
-      editMode: editMode
+      editMode: editMode,
+      canManage: canManage
     }) : screen === 'inst' ? /*#__PURE__*/React.createElement(InstApp, {
       goHome: goHome,
-      editMode: editMode
+      editMode: editMode,
+      canManage: canManage
     }) : /*#__PURE__*/React.createElement(HomeScreen, {
       onSelect: setScreen,
       editMode: editMode,
@@ -2780,12 +2827,14 @@ const Presentation = makeIcon([["path", {
   // ─────────────────────────────────────────────────────────────
   function CeoApp({
     goHome,
-    editMode
+    editMode,
+    canManage
   }) {
     const [tab, setTab] = useState('dashboard');
     useEffect(() => {
       if (!editMode && (tab === 'input' || tab === 'manage')) setTab('dashboard');
-    }, [editMode, tab]);
+      if (tab === 'manage' && !canManage) setTab('dashboard');
+    }, [editMode, tab, canManage]);
     const [year, setYear] = useState(() => {
       const e = readEmbeddedData();
       return e?.ceo?.meta?.year || 2026;
@@ -3179,7 +3228,7 @@ const Presentation = makeIcon([["path", {
       id: 'input',
       label: '실적입력',
       icon: Edit3
-    }, {
+    }] : []), ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
       icon: Settings
@@ -4482,12 +4531,14 @@ const Presentation = makeIcon([["path", {
   // ─────────────────────────────────────────────────────────────
   function InstApp({
     goHome,
-    editMode
+    editMode,
+    canManage
   }) {
     const [tab, setTab] = useState('dashboard');
     useEffect(() => {
       if (!editMode && (tab === 'input' || tab === 'manage')) setTab('dashboard');
-    }, [editMode, tab]);
+      if (tab === 'manage' && !canManage) setTab('dashboard');
+    }, [editMode, tab, canManage]);
     const [year, setYear] = useState(() => {
       const e = readEmbeddedData();
       return e?.inst?.meta?.year || 2026;
@@ -4907,7 +4958,7 @@ const Presentation = makeIcon([["path", {
       id: 'input',
       label: '실적입력',
       icon: Edit3
-    }, {
+    }] : []), ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
       icon: Settings
