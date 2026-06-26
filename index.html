@@ -2444,7 +2444,7 @@ const Presentation = makeIcon([["path", {
     const [screen, setScreen] = useState('home'); // 'home' | 'ceo' | 'inst'
     const [editMode, setEditMode] = useState(!OTP_ENABLED); // 내부망은 항상 편집 가능, 서버판은 제목 3연타
     // 지표관리 권한: 내부망은 항상 true, 서버판은 role==='admin'만
-    const canManage = !OTP_ENABLED || sessionStorage.getItem('hug_role') === 'admin';
+    const canManage = editMode; // role 기능 보류 - 편집모드면 지표관리 가능
 
     const goHome = () => setScreen('home');
     const globalStyle = /*#__PURE__*/React.createElement("style", null, `
