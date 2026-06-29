@@ -2832,7 +2832,7 @@ const Presentation = makeIcon([["path", {
   }) {
     const [tab, setTab] = useState('dashboard');
     useEffect(() => {
-      if (!editMode && (tab === 'input' || tab === 'manage')) setTab('dashboard');
+      if (!editMode && tab === 'manage') setTab('dashboard');
       if (tab === 'manage' && !canManage) setTab('dashboard');
     }, [editMode, tab, canManage]);
     const [year, setYear] = useState(() => {
@@ -3224,11 +3224,11 @@ const Presentation = makeIcon([["path", {
       id: 'dashboard',
       label: '대시보드',
       icon: BarChart3
-    }, ...(editMode ? [{
+    }, {
       id: 'input',
       label: '실적입력',
       icon: Edit3
-    }] : []), ...(editMode && canManage ? [{
+    }, ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
       icon: Settings
@@ -4536,7 +4536,7 @@ const Presentation = makeIcon([["path", {
   }) {
     const [tab, setTab] = useState('dashboard');
     useEffect(() => {
-      if (!editMode && (tab === 'input' || tab === 'manage')) setTab('dashboard');
+      if (!editMode && tab === 'manage') setTab('dashboard');
       if (tab === 'manage' && !canManage) setTab('dashboard');
     }, [editMode, tab, canManage]);
     const [year, setYear] = useState(() => {
@@ -4954,11 +4954,11 @@ const Presentation = makeIcon([["path", {
       id: 'dashboard',
       label: '대시보드',
       icon: BarChart3
-    }, ...(editMode ? [{
+    }, {
       id: 'input',
       label: '실적입력',
       icon: Edit3
-    }] : []), ...(editMode && canManage ? [{
+    }, ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
       icon: Settings
@@ -5795,7 +5795,54 @@ const Presentation = makeIcon([["path", {
       className: "px-4 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 flex items-center gap-2"
     }, /*#__PURE__*/React.createElement(Save, {
       className: "w-4 h-4"
-    }), "\uC800\uC7A5")))));
+    }), "\uC800\uC7A5"))), /*#__PURE__*/React.createElement("div", {
+      className: "bg-white border rounded-lg p-5"
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "font-semibold text-slate-800 mb-3 text-sm"
+    }, "\uC6D4\uBCC4 \uB204\uC801 \uCD94\uC774 (\uBAA9\uD45C vs \uC2E4\uC801 vs \uC804\uB9DD)"), /*#__PURE__*/React.createElement(ResponsiveContainer, {
+      width: "100%",
+      height: 280
+    }, /*#__PURE__*/React.createElement(LineChart, {
+      data: MONTHS.map((m, i) => ({
+        month: `${m}\uC6D4`,
+        \uBAA9\uD45C: monthlyTargets[i],
+        \uC2E4\uC801: localData[selectedCode]?.actual?.[m] ?? null,
+        \uC804\uB9DD: localData[selectedCode]?.forecast?.[m] ?? null
+      }))
+    }, /*#__PURE__*/React.createElement(CartesianGrid, {
+      strokeDasharray: "3 3",
+      stroke: "#e2e8f0"
+    }), /*#__PURE__*/React.createElement(XAxis, {
+      dataKey: "month",
+      tick: {
+        fontSize: 11
+      }
+    }), /*#__PURE__*/React.createElement(YAxis, {
+      tick: {
+        fontSize: 11
+      }
+    }), /*#__PURE__*/React.createElement(Tooltip, null), /*#__PURE__*/React.createElement(Legend, null), /*#__PURE__*/React.createElement(Line, {
+      type: "monotone",
+      dataKey: "\uBAA9\uD45C",
+      stroke: "#94a3b8",
+      strokeDasharray: "5 5",
+      strokeWidth: 2,
+      dot: false,
+      connectNulls: true
+    }), /*#__PURE__*/React.createElement(Line, {
+      type: "monotone",
+      dataKey: "\uC2E4\uC801",
+      stroke: "#059669",
+      strokeWidth: 2.5,
+      connectNulls: true
+    }), /*#__PURE__*/React.createElement(Line, {
+      type: "monotone",
+      dataKey: "\uC804\uB9DD",
+      stroke: "#6366f1",
+      strokeWidth: 2,
+      strokeDasharray: "3 3",
+      connectNulls: true
+    }))))));
   }
 
   // 기관 지표관리
@@ -5804,7 +5851,28 @@ const Presentation = makeIcon([["path", {
     saveIndicators
   }) {
     const [local, setLocal] = useState(indicators);
+    const [expandedIdx, setExpandedIdx] = useState(null);
     useEffect(() => setLocal(indicators), [indicators]);
+    const handleMonthlyOverride = (idx, m, v) => {
+      const n = [...local];
+      const ov = {
+        ...(n[idx].monthlyOverrides || {})
+      };
+      if (v === '' || v === null) delete ov[m];else ov[m] = parseFloat(v);
+      n[idx] = {
+        ...n[idx],
+        monthlyOverrides: Object.keys(ov).length ? ov : undefined
+      };
+      setLocal(n);
+    };
+    const clearMonthlyOverrides = idx => {
+      const n = [...local];
+      n[idx] = {
+        ...n[idx],
+        monthlyOverrides: undefined
+      };
+      setLocal(n);
+    };
     const handleField = (idx, k, v) => {
       const n = [...local];
       n[idx] = {
@@ -5881,8 +5949,14 @@ const Presentation = makeIcon([["path", {
       className: "px-2 py-2 text-center"
     }, "4Q"), /*#__PURE__*/React.createElement("th", {
       className: "px-2 py-2 text-center"
-    }, "\uBD84\uAE30"))), /*#__PURE__*/React.createElement("tbody", null, local.map((ind, idx) => {
-      return /*#__PURE__*/React.createElement("tr", {
+    }, "\uBD84\uAE30"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-center"
+    }, "\uC6D4\uBCC4"))), /*#__PURE__*/React.createElement("tbody", null, local.map((ind, idx) => {
+      const mt = getMonthlyTargets(ind);
+      const ovCount = ind.monthlyOverrides ? Object.keys(ind.monthlyOverrides).length : 0;
+      return /*#__PURE__*/React.createElement(React.Fragment, {
+        key: ind.code
+      }, /*#__PURE__*/React.createElement("tr", {
         key: ind.code,
         className: "border-b hover:bg-slate-50"
       }, /*#__PURE__*/React.createElement("td", {
@@ -5979,7 +6053,55 @@ const Presentation = makeIcon([["path", {
           setLocal(n);
         },
         className: "text-xs text-blue-600 hover:underline"
-      }, "\uCD94\uAC00")));
+      }, "\uCD94\uAC00")), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-1 text-center"
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => setExpandedIdx(expandedIdx === idx ? null : idx),
+        className: `text-xs px-2 py-1 rounded border ${ovCount > 0 ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`
+      }, expandedIdx === idx ? '\uB2EB\uAE30' : ovCount > 0 ? `\uC6D4\uBCC4 \u25CF${ovCount}` : '\uC6D4\uBCC4'))), expandedIdx === idx && /*#__PURE__*/React.createElement("tr", {
+        className: "bg-slate-50/70 border-b"
+      }, /*#__PURE__*/React.createElement("td", {
+        colSpan: 14,
+        className: "px-4 py-3"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-xs text-slate-600 mb-2"
+      }, /*#__PURE__*/React.createElement("strong", null, ind.code, " ", ind.name), " \u2014 \uC6D4\uBCC4 \uB204\uC801\uBAA9\uD45C \uC9C1\uC811 \uC785\uB825 ", /*#__PURE__*/React.createElement("span", {
+        className: "text-slate-400 ml-2"
+      }, "\uBE48 \uCE78\uC740 \uBD84\uAE30 \uC790\uB3D9\uBD84\uBC30\uAC12 \uC0AC\uC6A9")), /*#__PURE__*/React.createElement("table", {
+        className: "w-full text-xs"
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+        className: "text-slate-500"
+      }, /*#__PURE__*/React.createElement("th", {
+        className: "px-1 py-1 text-left w-20"
+      }, "\uAD6C\uBD84"), MONTHS.map(m => /*#__PURE__*/React.createElement("th", {
+        key: m,
+        className: "px-1 py-1 text-center"
+      }, m, "\uC6D4")))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+        className: "px-1 py-1 text-slate-500"
+      }, "\uC790\uB3D9\uBD84\uBC30\uAC12"), mt.map((v, i) => /*#__PURE__*/React.createElement("td", {
+        key: i,
+        className: "px-1 py-1 text-center text-slate-400 tabular-nums"
+      }, v === null ? '\u2014' : (Math.round(v * 100) / 100).toLocaleString()))), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+        className: "px-1 py-1 font-medium text-blue-700"
+      }, "\uC9C1\uC811\uC785\uB825"), MONTHS.map(m => {
+        const ov = ind.monthlyOverrides?.[m];
+        return /*#__PURE__*/React.createElement("td", {
+          key: m,
+          className: "px-0.5 py-1"
+        }, /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          step: "any",
+          value: ov === undefined || ov === null ? '' : ov,
+          onChange: e => handleMonthlyOverride(idx, m, e.target.value),
+          placeholder: "\u2014",
+          className: `w-full px-1 py-0.5 border rounded text-right text-xs ${ov !== undefined && ov !== null ? 'bg-blue-50 border-blue-300' : 'border-slate-200'}`
+        }));
+      })))), ovCount > 0 && /*#__PURE__*/React.createElement("div", {
+        className: "mt-2 text-right"
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => clearMonthlyOverrides(idx),
+        className: "text-xs text-rose-600 hover:underline"
+      }, "\uC774 \uC9C0\uD45C \uC6D4\uBCC4 \uC218\uB3D9\uAC12 \uC804\uCCB4 \uCD08\uAE30\uD654")))));
     }))))));
   }
 
