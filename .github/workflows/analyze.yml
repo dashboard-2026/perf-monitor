@@ -1,0 +1,27 @@
+name: 지표별 외부환경 분석 (주간)
+
+on:
+  schedule:
+    - cron: '0 23 * * 0'  # 매주 월요일 오전 8시 KST (UTC 일요일 23시)
+  workflow_dispatch:       # 수동 실행도 가능
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 분석 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
+          GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node .github/scripts/analyze_indicators.js
