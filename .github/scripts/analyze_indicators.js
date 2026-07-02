@@ -16,7 +16,8 @@ const GOOGLE_SEARCH_CX   = process.env.GOOGLE_SEARCH_ENGINE_ID;
 const SUPABASE_URL       = process.env.SUPABASE_URL;
 const SUPABASE_KEY       = process.env.SUPABASE_KEY;
 
-const MAX_KEYWORDS_PER_INDICATOR = 4; // 지표당 개별 검색할 키워드 수 (한도 조절용)
+const MAX_KEYWORDS_PER_INDICATOR = 4;
+const TEST_MODE = true; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경 // 지표당 개별 검색할 키워드 수 (한도 조절용)
 const MAX_NEWS_PER_INDICATOR     = 8; // 최종 병합 후 남길 뉴스 개수
 
 // ── 분석 대상 18개 지표 + 검색 키워드 (중요도순으로 나열, 앞 3개가 개별 검색됨) ──
@@ -179,7 +180,7 @@ ${prevText}
 }
 factors는 2~4개로 작성하세요.`;
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,{
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,{
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3,maxOutputTokens:1200} })
   });
@@ -204,8 +205,10 @@ async function saveToSupabase(ws, code, analysis, news){
 (async ()=>{
   console.log(`\n🔍 외부환경 분석 시작 — ${new Date().toLocaleString('ko-KR')}`);
   console.log(`대상: ${INDICATORS.length}개 지표 (지표당 상위 ${MAX_KEYWORDS_PER_INDICATOR}개 키워드 개별 검색)\n`);
+  const targets = TEST_MODE ? INDICATORS.slice(0, 3) : INDICATORS;
+  console.log(TEST_MODE ? '🧪 테스트 모드: 앞 3개 지표만 실행\n' : '');
   let ok=0, fail=0;
-  for(const ind of INDICATORS){
+  for(const ind of targets){
     try{
       process.stdout.write(`[${ind.code}] ${ind.name}...`);
       const news = await searchNewsMulti(ind.keywords);
