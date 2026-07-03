@@ -3848,7 +3848,9 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 10,
         className: "px-4 py-4 hug-expand"
-      }, (i.formula || cmt.cause || cmt.action) && /*#__PURE__*/React.createElement("div", {
+      }, i.definition && /*#__PURE__*/React.createElement("p", {
+        className: "text-sm text-slate-600 leading-relaxed mb-3 pb-3 border-b border-slate-200"
+      }, i.definition), (i.formula || cmt.cause || cmt.action) && /*#__PURE__*/React.createElement("div", {
         className: "flex flex-wrap gap-2 mb-3 text-sm"
       }, i.formula && /*#__PURE__*/React.createElement("div", {
         className: "bg-blue-50 border border-blue-200 rounded px-3 py-1.5"
@@ -4636,6 +4638,16 @@ const Presentation = makeIcon([["path", {
         colSpan: 13,
         className: "px-4 py-3"
       }, /*#__PURE__*/React.createElement("div", {
+        className: "mb-3"
+      }, /*#__PURE__*/React.createElement("label", {
+        className: "text-xs font-medium text-slate-600 block mb-1"
+      }, "\uC9C0\uD45C\uC815\uC758 (\uC0C1\uC138\uD3BC\uCE68 \uCCAB\uC904\uC5D0 \uD45C\uC2DC, \uBE44\uC6CC\uB450\uBA74 \uD45C\uC2DC \uC548\uD568)"), /*#__PURE__*/React.createElement("textarea", {
+        value: ind.definition || '',
+        onChange: e => handleField(idx, 'definition', e.target.value),
+        placeholder: "\uC608) \uC804\uC138\uBCF4\uC99D\uAE08 \uBC18\uD658\uBCF4\uC99D \uB4F1 \uC11C\uBBFC \uC8FC\uAC70\uC548\uC815 \uBCF4\uC99D \uACF5\uAE09\uC561(\uC5B5\uC6D0)",
+        rows: 2,
+        className: "w-full px-2 py-1.5 border rounded text-sm resize-none"
+      })), /*#__PURE__*/React.createElement("div", {
         className: "mb-3"
       }, /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
@@ -5529,7 +5541,9 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 10,
         className: "px-4 py-4 hug-expand"
-      }, (i.formula || cmt.cause || cmt.action) && /*#__PURE__*/React.createElement("div", {
+      }, i.definition && /*#__PURE__*/React.createElement("p", {
+        className: "text-sm text-slate-600 leading-relaxed mb-3 pb-3 border-b border-slate-200"
+      }, i.definition), (i.formula || cmt.cause || cmt.action) && /*#__PURE__*/React.createElement("div", {
         className: "flex flex-wrap gap-2 mb-3 text-sm"
       }, i.formula && /*#__PURE__*/React.createElement("div", {
         className: "bg-blue-50 border border-blue-200 rounded px-3 py-1.5"
@@ -6164,6 +6178,11 @@ const Presentation = makeIcon([["path", {
         onChange: e => handleField(idx, 'formula', e.target.value),
         placeholder: "\uC0B0\uC2DD (\uC608: A\xF7B\xD7100)",
         className: "w-full px-1 mt-1 border rounded text-xs text-slate-500"
+      }), /*#__PURE__*/React.createElement("input", {
+        value: ind.definition || '',
+        onChange: e => handleField(idx, 'definition', e.target.value),
+        placeholder: "\uC9C0\uD45C\uC815\uC758 (\uC0C1\uC138 \uCCAB\uC904\uC5D0 \uD45C\uC2DC, \uBE44\uC6B0\uBA74 \uD45C\uC2DC \uC548\uD568)",
+        className: "w-full px-1 mt-1 border rounded text-xs text-blue-500"
       })), /*#__PURE__*/React.createElement("td", {
         className: "px-2 py-1"
       }, /*#__PURE__*/React.createElement("input", {
