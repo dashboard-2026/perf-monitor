@@ -9,7 +9,8 @@
  *  - 지난주 분석 결과를 프롬프트에 포함 → 전주 대비 변화 추이(trend) 반영
  *  - 지표당 뉴스 최대 8건으로 확대
  *
- * 예상 API 사용량(주 1회 실행 기준): 네이버 뉴스 약 72회(한도 25,000/일), Gemini 18회(한도 1500/일)
+ * 예상 API 사용량(주 1회 실행 기준): 네이버 뉴스 약 72회(한도 25,000/일),
+ *   Gemini 18~36회(1회 실패 시 재시도 포함, 한도 1500/일)
  */
 
 const GEMINI_API_KEY     = process.env.GEMINI_API_KEY;
@@ -147,8 +148,22 @@ async function fetchPreviousAnalysis(ws, code){
   } catch(e){ return null; }
 }
 
-async function analyzeWithGemini(name, desc, newsItems, previous){
+// Gemini 호출 1회 시도 (내부용, 재시도는 analyzeWithGemini에서 처리)
+async function callGeminiOnce(prompt){
   geminiCallCount++;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3,maxOutputTokens:3000} })
+  });
+  if(!res.ok) throw new Error('Gemini: '+await res.text());
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const m = text.match(/\{[\s\S]*\}/);
+  if(!m) throw new Error('JSON 파싱 실패 - 원문(앞 500자): ' + (text.slice(0,500) || '(빈 응답, finishReason: ' + (data.candidates?.[0]?.finishReason || '알수없음') + ')'));
+  return JSON.parse(m[0]);
+}
+
+async function analyzeWithGemini(name, desc, newsItems, previous){
   const newsText = newsItems.length
     ? newsItems.map((n,i)=>`[${i+1}] ${n.title}\n${n.snippet}`).join('\n\n')
     : '최근 2주간 관련 뉴스를 찾지 못했습니다.';
@@ -172,40 +187,45 @@ ${prevText}
 3. [수치 우선] 뉴스에 지수·수치가 있으면 전월 대비·전년동월 대비 변동(상승/하락/보합)을 반드시 확인해 summary와 description에 구체적으로 반영하세요. 비교 수치가 없으면 억지로 만들지 말고 방향성만 서술하세요(수치를 지어내지 마세요).
 4. [변화 추이] 지난주 분석이 있으면 이번 주와 비교해 달라진 점을 trend에 반영하세요. 없으면 direction을 "new"로 하세요.
 5. [문체] "지속적인 모니터링이 필요하다", "귀추가 주목된다", "예의주시할 필요가 있다" 같은 상투적·공허한 표현을 금지합니다. 구체적 사실·수치·인과관계 중심으로 간결하게 쓰세요.
+6. [분량 엄수 — 중요] summary는 반드시 2문장, 총 120자 이내로 쓰세요. factors의 description은 각 40자 이내, outlook은 1문장 50자 이내, trend.description은 1문장 40자 이내로 쓰세요. 분량을 넘기면 출력이 잘려 시스템 오류가 발생하니 반드시 지키세요.
 
-## 좋은 출력 예시 (형식 참고용)
+## 좋은 출력 예시 (분량 기준 그대로 참고)
 {
-  "summary": "5월 건설공사비지수가 137.67로 전월 대비 0.40%, 전년동월 대비 5.07% 상승하며 역대 최고치를 경신했다. 자재비·인건비 상승이 PF 사업성을 압박해 보증 수요에 부정적으로 작용할 수 있다.",
+  "summary": "5월 건설공사비지수 137.67로 전월비 0.40%, 전년비 5.07% 상승. 자재비 부담이 PF 보증 수요를 압박한다.",
   "factors": [
-    { "name": "공사비 상승", "impact": "negative", "description": "건설공사비지수 전년동월 대비 5.07% 상승으로 사업 원가 부담 확대" },
-    { "name": "PF 시장 위축", "impact": "negative", "description": "고금리 지속으로 PF 대출 심사 강화, 신규 보증 수요 둔화" }
+    { "name": "공사비 상승", "impact": "negative", "description": "지수 전년비 5.07% 상승, 사업 원가 부담 확대" },
+    { "name": "PF 시장 위축", "impact": "negative", "description": "고금리로 PF 심사 강화, 신규 수요 둔화" }
   ],
-  "outlook": "공사비 상승세가 2분기에도 이어지면 보증 실적 회복은 제한적일 전망이다.",
-  "trend": { "direction": "worsening", "description": "지난주 대비 공사비지수가 추가 상승하며 부담이 커졌다." }
+  "outlook": "공사비 상승세 지속 시 보증 실적 회복은 제한적일 전망.",
+  "trend": { "direction": "worsening", "description": "전주 대비 공사비지수 추가 상승, 부담 확대." }
 }
 
 ## 출력 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트·마크다운·설명은 절대 포함하지 마세요.
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트·마크다운·설명은 절대 포함하지 마세요. 문자열 안에 큰따옴표(")를 쓸 일이 있으면 반드시 \\" 로 이스케이프하세요.
 {
-  "summary": "2~3문장. 현재 외부환경 핵심을 수치와 함께 요약",
+  "summary": "2문장, 120자 이내. 현재 외부환경 핵심을 수치와 함께 요약",
   "factors": [
-    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "한 문장. 가능하면 전월/전년동월 대비 수치 포함" }
+    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "40자 이내 한 문장. 가능하면 전월/전년동월 대비 수치 포함" }
   ],
-  "outlook": "향후 1~2개월 전망 한 문장",
-  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점 한 문장 (지난주 분석 없으면 '이번이 첫 분석입니다')" }
+  "outlook": "향후 1~2개월 전망, 50자 이내 한 문장",
+  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점, 40자 이내 한 문장 (지난주 분석 없으면 '이번이 첫 분석입니다')" }
 }
 factors는 2~4개로 작성하세요.`;
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3,maxOutputTokens:2048} })
-  });
-  if(!res.ok) throw new Error('Gemini: '+await res.text());
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const m = text.match(/\{[\s\S]*\}/);
-  if(!m) throw new Error('JSON 파싱 실패 - 원문(앞 500자): ' + (text.slice(0,500) || '(빈 응답, finishReason: ' + (data.candidates?.[0]?.finishReason || '알수없음') + ')'));
-  return JSON.parse(m[0]);
+  // 최대 2회 시도 (1회 실패 시 1회 재시도)
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await callGeminiOnce(prompt);
+    } catch(e) {
+      lastErr = e;
+      if (attempt < 2) {
+        console.log(`   (Gemini 1차 실패, 재시도 중... ${e.message.slice(0,80)})`);
+        await sleep(1000);
+      }
+    }
+  }
+  throw lastErr;
 }
 
 async function saveToSupabase(ws, code, analysis, news){
