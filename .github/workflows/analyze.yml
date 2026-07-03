@@ -3,7 +3,16 @@ name: 지표별 외부환경 분석 (주간)
 on:
   schedule:
     - cron: '0 23 * * 0'  # 매주 월요일 오전 8시 KST (UTC 일요일 23시)
-  workflow_dispatch:       # 수동 실행도 가능
+  workflow_dispatch:       # 수동 실행 시 아래 옵션 선택 가능
+    inputs:
+      run_news:
+        description: '뉴스 기반 외부환경 분석 실행'
+        type: boolean
+        default: true
+      run_market:
+        description: '시장 통계(금리·가격지수) 수집 실행'
+        type: boolean
+        default: true
 
 jobs:
   analyze:
@@ -18,6 +27,7 @@ jobs:
           node-version: '20'
 
       - name: 뉴스 기반 외부환경 분석
+        if: github.event_name != 'workflow_dispatch' || inputs.run_news == true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -27,6 +37,7 @@ jobs:
         run: node .github/scripts/analyze_indicators.js
 
       - name: 시장 통계(금리·가격지수) 수집
+        if: github.event_name != 'workflow_dispatch' || inputs.run_market == true
         env:
           ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
           REB_API_KEY: ${{ secrets.REB_API_KEY }}
