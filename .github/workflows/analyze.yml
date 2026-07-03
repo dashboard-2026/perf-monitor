@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 분석 실행
+      - name: 뉴스 기반 외부환경 분석
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -25,3 +25,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: node .github/scripts/analyze_indicators.js
+
+      - name: 시장 통계(금리·가격지수) 수집
+        env:
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+          REB_API_KEY: ${{ secrets.REB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node .github/scripts/fetch_market_stats.js
