@@ -2,22 +2,24 @@
  * HUG 성과지표 외부환경 분석 스크립트 (GitHub Actions에서 주 1회 자동 실행)
  * 결과는 Supabase env_analysis 테이블에 저장됨
  *
- * v2 개선사항:
- *  - 키워드별 개별 검색(상위 3개) 후 병합·중복제거 → 더 정확한 뉴스 확보
+ * v3 개선사항 (Google Custom Search → 네이버 뉴스 검색으로 전환):
+ *  - Google Programmable Search Engine이 2026년 1월부로 무료 전체웹검색을 중단하여
+ *    네이버 뉴스 검색 API로 교체 (한국어 부동산·금융 뉴스에 더 적합, 무료 일 25,000회)
+ *  - 키워드별 개별 검색(상위 4개) 후 병합·중복제거 → 더 정확한 뉴스 확보
  *  - 지난주 분석 결과를 프롬프트에 포함 → 전주 대비 변화 추이(trend) 반영
  *  - 지표당 뉴스 최대 8건으로 확대
  *
- * 예상 API 사용량(주 1회 실행 기준): Google Search 약 54회(한도 100/일), Gemini 18회(한도 1500/일)
+ * 예상 API 사용량(주 1회 실행 기준): 네이버 뉴스 약 72회(한도 25,000/일), Gemini 18회(한도 1500/일)
  */
 
-const GEMINI_API_KEY    = process.env.GEMINI_API_KEY;
-const GOOGLE_SEARCH_KEY  = process.env.GOOGLE_SEARCH_API_KEY;
-const GOOGLE_SEARCH_CX   = process.env.GOOGLE_SEARCH_ENGINE_ID;
+const GEMINI_API_KEY     = process.env.GEMINI_API_KEY;
+const NAVER_CLIENT_ID    = process.env.NAVER_CLIENT_ID;
+const NAVER_CLIENT_SECRET= process.env.NAVER_CLIENT_SECRET;
 const SUPABASE_URL       = process.env.SUPABASE_URL;
 const SUPABASE_KEY       = process.env.SUPABASE_KEY;
 
-const MAX_KEYWORDS_PER_INDICATOR = 4;
-const TEST_MODE = true; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경 // 지표당 개별 검색할 키워드 수 (한도 조절용)
+const MAX_KEYWORDS_PER_INDICATOR = 4; // 지표당 개별 검색할 키워드 수 (한도 조절용)
+const TEST_MODE = true; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경
 const MAX_NEWS_PER_INDICATOR     = 8; // 최종 병합 후 남길 뉴스 개수
 
 // ── 분석 대상 18개 지표 + 검색 키워드 (중요도순으로 나열, 앞 3개가 개별 검색됨) ──
@@ -86,14 +88,28 @@ let geminiCallCount = 0;
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 // 키워드 1개로 검색 (num=4)
+// 네이버 검색 결과의 <b> 태그 등 HTML 마크업 제거
+function stripHtml(s){
+  return (s||'').replace(/<[^>]*>/g,'').replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+}
+
 async function searchNewsForKeyword(keyword){
   searchCallCount++;
-  const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(keyword)}&num=4&dateRestrict=w2&hl=ko&gl=kr`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error('Google Search: '+await res.text());
+  const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(keyword)}&display=5&sort=date`;
+  const res = await fetch(url, {
+    headers: {
+      'X-Naver-Client-Id': NAVER_CLIENT_ID,
+      'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
+    }
+  });
+  if(!res.ok) throw new Error('Naver Search: '+await res.text());
   const data = await res.json();
   if(!data.items) return [];
-  return data.items.map(i=>({ title:i.title, snippet:i.snippet, link:i.link, keyword }));
+  // 최근 2주 이내 뉴스만 필터링 (네이버 API는 date 파라미터가 없어 pubDate로 직접 필터링)
+  const twoWeeksAgo = Date.now() - 14*24*60*60*1000;
+  return data.items
+    .filter(i => new Date(i.pubDate).getTime() >= twoWeeksAgo)
+    .map(i=>({ title:stripHtml(i.title), snippet:stripHtml(i.description), link:i.originallink||i.link, keyword }));
 }
 
 // 상위 N개 키워드를 개별 검색 후 링크 기준 중복제거하여 병합
@@ -111,7 +127,7 @@ async function searchNewsMulti(keywords){
         }
       }
     } catch(e) {
-      console.log(`   (검색 실패: "${kw}" - ${e.message.slice(0,50)})`);
+      console.log(`   (검색 실패: "${kw}" - ${e.message.slice(0,300)})`);
     }
     await sleep(300);
   }
@@ -220,12 +236,12 @@ async function saveToSupabase(ws, code, analysis, news){
       console.log(` ✅ (뉴스 ${news.length}건${previous?', 전주비교 O':', 첫분석'})`);
       ok++;
     }catch(e){
-      console.log(` ❌ ${e.message.slice(0,60)}`);
+      console.log(` ❌ ${e.message.slice(0,300)}`);
       fail++;
     }
     await sleep(500);
   }
   console.log(`\n완료 — 성공 ${ok}, 실패 ${fail}`);
-  console.log(`API 사용량 — Google Search: ${searchCallCount}회(한도 100/일), Gemini: ${geminiCallCount}회(한도 1500/일)`);
+  console.log(`API 사용량 — 네이버 뉴스 검색: ${searchCallCount}회(한도 25,000/일), Gemini: ${geminiCallCount}회(한도 1500/일)`);
   if(fail>0 && ok===0) process.exit(1);
 })();
