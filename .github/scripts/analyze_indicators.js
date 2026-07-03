@@ -19,37 +19,37 @@ const NAVER_CLIENT_SECRET= process.env.NAVER_CLIENT_SECRET;
 const SUPABASE_URL       = process.env.SUPABASE_URL;
 const SUPABASE_KEY       = process.env.SUPABASE_KEY;
 
-const MAX_KEYWORDS_PER_INDICATOR = 4; // 지표당 개별 검색할 키워드 수 (한도 조절용)
+// 지표당 키워드는 전체 검색 (각 키워드마다 date+sim 2회 호출)
 const TEST_MODE = false; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경
 const MAX_NEWS_PER_INDICATOR     = 8; // 최종 병합 후 남길 뉴스 개수
 
 // ── 분석 대상 18개 지표 + 검색 키워드 (중요도순으로 나열, 앞 3개가 개별 검색됨) ──
 const INDICATORS = [
   { ws:'ceo', code:'P-01', name:'주택사업금융보증 실적',
-    keywords:['건설공사비 지수', 'PF대출', 'CD금리', '재건축 공사비 증액'],
-    desc:'주택사업 PF·정비사업 등에 대한 금융보증 공급액(억원). 건설경기·PF시장이 활발할수록 실적 증가. 많을수록 좋음.' },
+    keywords:['건설공사비 지수', '부동산 PF', '주택 공급대책', '정비사업 활성화'],
+    desc:'주택사업 PF·정비사업 등에 대한 금융보증 공급액(억원). 건설경기·PF시장·주택공급 정책이 활발할수록 실적 증가. 많을수록 좋음.' },
   { ws:'ceo', code:'P-02', name:'공공지원임대주택 지원 실적',
-    keywords:['건설공사비 지수', '공공임대주택 공급 목표', '주택담보대출 금리', '민간임대주택'],
-    desc:'공공지원 민간임대주택 보증 지원 실적(호). 임대주택 공급·착공이 늘수록 실적 증가. 많을수록 좋음.' },
+    keywords:['공공지원 민간임대', '임대주택 공급대책', '민간임대주택 활성화', '임대리츠'],
+    desc:'공공지원 민간임대주택 보증 지원 실적(호). 임대주택 공급 정책·착공이 늘수록 실적 증가. 많을수록 좋음.' },
   { ws:'ceo', code:'P-03', name:'서민 주거안정 보증실적',
-    keywords:['전월세 거래량', '전세보증금 반환보증', '전세사기', '전세자금 금리'],
-    desc:'전세보증금 반환보증 등 서민 주거안정 보증 공급액(억원). 전세거래·전세수요가 많을수록 실적 증가. 많을수록 좋음.' },
+    keywords:['전세보증금 반환보증', '전세사기 대책', '전월세 거래량', '임차인 보호'],
+    desc:'전세보증금 반환보증 등 서민 주거안정 보증 공급액(억원). 전세거래·전세수요·관련 정책이 많을수록 실적 증가. 많을수록 좋음.' },
   { ws:'ceo', code:'P-04', name:'전세보증 이행기한 준수도',
     keywords:['전세가격지수', '전세사기 피해 결정', '대위변제', '역전세'],
-    desc:'전세보증 사고 발생 시 이행기한 준수율(%). 전세사고·대위변제가 급증하면 처리 부담이 커져 준수도 하락 압력. 높을수록 좋음.' },
+    desc:'전세보증 사고 발생 시 이행기한 준수율(%). 현재 높은 수준에서 안정적으로 유지되고 있는 지표로, 통상적인 여건에서는 준수도가 잘 유지됨. 전세사고·대위변제가 급격히 늘어나는 경우에 한해 하락 압력이 발생할 수 있음. 높을수록 좋음.' },
   { ws:'ceo', code:'P-05-1', name:'재무건전성 관리지수 (부채비율)',
     keywords:['보증사고', '대위변제 규모', '공사채 발행', '부동산 경기'],
     desc:'기관 부채비율(%). 보증사고·대위변제가 늘면 부채비율 상승. 낮을수록 좋음.' },
   { ws:'ceo', code:'P-05-2', name:'재무건전성 관리지수 (구상채권 회수율)',
-    keywords:['경매 낙찰가율', '부동산 경매 물량', '구상채권 매각', '법원 경매'],
-    desc:'구상채권(대위변제 후 회수 대상) 회수율(%). 경매 낙찰가율이 높고 경매시장이 활발할수록 회수 유리. 높을수록 좋음.' },
+    keywords:['경매 낙찰가율', '경매 낙찰률', '부동산 경매 물량', '구상채권 매각'],
+    desc:'구상채권(대위변제 후 회수 대상) 회수율(%). 경매 낙찰가율·낙찰률이 높고 경매시장이 활발할수록 회수 유리. 높을수록 좋음.' },
   { ws:'ceo', code:'P-09', name:'도시계정 기금예산 집행률',
-    keywords:['가로주택정비사업', '소규모주택정비사업', '자율주택정비사업', '소규모재건축'],
-    desc:'도시계정(소규모 정비사업 융자 등) 기금예산 집행률(%). 가로주택·소규모정비 사업이 활발할수록 융자 집행 증가. 높을수록 좋음.' },
+    keywords:['가로주택정비사업', '소규모주택정비', '도시재생 뉴딜', '노후계획도시 정비'],
+    desc:'도시계정(소규모 정비사업 융자 등) 기금예산 집행률(%). 가로주택·소규모정비·도시재생 사업이 활발할수록 융자 집행 증가. 높을수록 좋음.' },
 
   { ws:'inst', code:'1-1', name:'주거안정 지원 강화',
-    keywords:['주택 거래량', '공공임대주택 공급 목표', '보증 수요', '주택 매매가격'],
-    desc:'주거안정 관련 보증 지원 실적(억원). 주택거래·보증수요가 많을수록 실적 증가. 많을수록 좋음.' },
+    keywords:['전세보증금 반환보증', '전세사기 대책', '전월세 거래량', '임차인 보호'],
+    desc:'주거안정 관련 보증 지원 실적(억원). 전세거래·전세수요·관련 정책이 많을수록 실적 증가. 많을수록 좋음.' },
   { ws:'inst', code:'1-2', name:'주택공급 지원 강화',
     keywords:['건설공사비 지수', '주택 착공', '분양 물량', '인허가 실적'],
     desc:'주택공급 관련 보증 지원 실적(억원). 주택 착공·분양·인허가가 활발할수록 실적 증가. 많을수록 좋음.' },
@@ -61,22 +61,22 @@ const INDICATORS = [
     desc:'전세임대보증 부채비율(%). 전세가 하락·역전세가 심해지면 부채비율 상승. 낮을수록 좋음.' },
   { ws:'inst', code:'3-3', name:'전세보증 이행도',
     keywords:['전세가격지수', '전세사기 피해 결정', '대위변제', '역전세'],
-    desc:'전세보증 이행도(%, 사고 대비 원활한 이행). 전세사기·대위변제가 급증하면 이행 부담 증가. 낮을수록(사고 적을수록) 좋음.' },
+    desc:'전세보증 이행도(%, 사고 대비 원활한 이행). 현재 안정적으로 잘 관리되고 있는 지표로, 통상적인 여건에서는 이행도가 양호하게 유지됨. 전세사기·대위변제가 급격히 늘어나는 경우에 한해 부담이 커질 수 있음. 낮을수록(사고 적을수록) 좋음.' },
   { ws:'inst', code:'4-1', name:'기업보증 회수율',
     keywords:['건설사 법정관리', '기업 회생', 'PF 부실 사업장', '채권 매각'],
     desc:'기업보증 구상채권 회수율(%). 건설사 법정관리·기업회생이 늘면 회수 어려움. 높을수록 좋음.' },
   { ws:'inst', code:'4-2', name:'개인보증 회수율',
-    keywords:['경매 낙찰가율', '주택 경매 물량', '개인회생', '연체율'],
-    desc:'개인보증 구상채권 회수율(%). 경매 낙찰가율이 높을수록 회수 유리, 개인회생·연체 증가 시 불리. 높을수록 좋음.' },
+    keywords:['경매 낙찰가율', '경매 낙찰률', '주택 경매 물량', '개인회생'],
+    desc:'개인보증 구상채권 회수율(%). 경매 낙찰가율·낙찰률이 높을수록 회수 유리, 개인회생 증가 시 불리. 높을수록 좋음.' },
   { ws:'inst', code:'5', name:'든든전세주택 공급',
     keywords:['전월세 거래량', '경매 유입 물량', '공공 매입임대', '빈집 매입'],
     desc:'든든전세주택(경매주택 매입 후 공공전세) 공급 세대수. 경매 물량·매입임대 여건이 좋을수록 공급 증가. 많을수록 좋음.' },
   { ws:'inst', code:'6', name:'임대주택 공급 활성화',
-    keywords:['주택도시기금 출자', '임대리츠', '공공임대 착공', 'LH 공급'],
-    desc:'임대주택 공급 활성화 실적(세대). 기금 출자·임대리츠·공공임대 착공이 활발할수록 실적 증가. 많을수록 좋음.' },
+    keywords:['임대주택 공급대책', '임대리츠', '공공임대 착공', '주택도시기금 출자'],
+    desc:'임대주택 공급 활성화 실적(세대). 임대주택 공급 정책·임대리츠·공공임대 착공이 활발할수록 실적 증가. 많을수록 좋음.' },
   { ws:'inst', code:'7', name:'주택구입·전세자금 대출지원',
-    keywords:['주택담보대출 금리', 'DSR 규제', '정책모기지 한도', '전세자금대출 규제'],
-    desc:'주택구입·전세자금 대출지원 실적(세대). 대출금리·DSR 규제·정책모기지 한도가 완화될수록 지원 증가. 많을수록 좋음.' },
+    keywords:['정책모기지 한도', '가계대출 총량규제', '전세자금대출 규제', '주택도시기금 대출 한도'],
+    desc:'주택구입·전세자금 대출지원 실적(세대). 정책모기지·기금 대출 한도가 확대되고 관련 규제가 완화될수록 지원 증가. 정책대출은 DSR 규제 적용 대상이 아니며 정부 고시 별도 금리체계를 적용받음. 많을수록 좋음.' },
   { ws:'inst', code:'8-1', name:'도시재생 활성화 지원실적',
     keywords:['도시재생 뉴딜리츠', '도시재생 씨앗융자', '노후산업단지재생', '소규모정비사업'],
     desc:'도시재생(뉴딜리츠·씨앗융자 등) 지원 실적(백만원). 도시재생 사업·융자가 활발할수록 실적 증가. 많을수록 좋음.' },
@@ -94,9 +94,10 @@ function stripHtml(s){
   return (s||'').replace(/<[^>]*>/g,'').replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
 }
 
-async function searchNewsForKeyword(keyword){
+// 네이버 뉴스 1개 쿼리 호출 (정렬방식 지정)
+async function naverNewsQuery(keyword, sort){
   searchCallCount++;
-  const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(keyword)}&display=5&sort=date`;
+  const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(keyword)}&display=5&sort=${sort}`;
   const res = await fetch(url, {
     headers: {
       'X-Naver-Client-Id': NAVER_CLIENT_ID,
@@ -106,16 +107,30 @@ async function searchNewsForKeyword(keyword){
   if(!res.ok) throw new Error('Naver Search: '+await res.text());
   const data = await res.json();
   if(!data.items) return [];
-  // 최근 2주 이내 뉴스만 필터링 (네이버 API는 date 파라미터가 없어 pubDate로 직접 필터링)
   const oneMonthAgo = Date.now() - 30*24*60*60*1000;
   return data.items
     .filter(i => new Date(i.pubDate).getTime() >= oneMonthAgo)
     .map(i=>({ title:stripHtml(i.title), snippet:stripHtml(i.description), link:i.originallink||i.link, keyword }));
 }
 
+// 키워드 1개를 최신순(date) + 관련도순(sim) 두 번 검색해 병합 (최근 1개월 이내)
+async function searchNewsForKeyword(keyword){
+  const [byDate, bySim] = await Promise.all([
+    naverNewsQuery(keyword, 'date'),
+    naverNewsQuery(keyword, 'sim'),
+  ]);
+  // 최신순 우선으로 병합하되 링크 중복 제거
+  const merged = [];
+  const seen = new Set();
+  for (const it of [...byDate, ...bySim]) {
+    if (!seen.has(it.link)) { seen.add(it.link); merged.push(it); }
+  }
+  return merged;
+}
+
 // 상위 N개 키워드를 개별 검색 후 링크 기준 중복제거하여 병합
 async function searchNewsMulti(keywords){
-  const targets = keywords.slice(0, MAX_KEYWORDS_PER_INDICATOR);
+  const targets = keywords; // 지정된 키워드 전체를 검색
   const merged = [];
   const seenLinks = new Set();
   for (const kw of targets) {
@@ -241,7 +256,7 @@ async function saveToSupabase(ws, code, analysis, news){
 
 (async ()=>{
   console.log(`\n🔍 외부환경 분석 시작 — ${new Date().toLocaleString('ko-KR')}`);
-  console.log(`대상: ${INDICATORS.length}개 지표 (지표당 상위 ${MAX_KEYWORDS_PER_INDICATOR}개 키워드 개별 검색)\n`);
+  console.log(`대상: ${INDICATORS.length}개 지표 (지표별 키워드 전체를 date+sim 병합 검색)\n`);
   const targets = TEST_MODE ? INDICATORS.slice(0, 3) : INDICATORS;
   console.log(TEST_MODE ? '🧪 테스트 모드: 앞 3개 지표만 실행\n' : '');
   let ok=0, fail=0;
