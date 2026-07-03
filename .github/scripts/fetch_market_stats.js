@@ -31,20 +31,22 @@ function yyyymmdd(d){ return d.toISOString().slice(0,10).replace(/-/g,''); }
 function yyyymm(d){ return d.toISOString().slice(0,7).replace('-',''); }
 
 // ── 한국은행 ECOS 조회 ───────────────────────────────────────
-// 최근 60일(일별) 또는 최근 6개월(월별) 데이터를 가져와 최신값 + 비교값을 계산
+// 최근 13개월치 데이터를 가져와 최신값 + 비교값 + 그래프용 시계열을 계산
 async function fetchEcosStat(stat){
   const end = new Date();
   const start = new Date();
   let startStr, endStr;
   if (stat.period === 'D') {
-    start.setDate(start.getDate() - 60);
+    start.setMonth(start.getMonth() - 13);
     startStr = yyyymmdd(start); endStr = yyyymmdd(end);
   } else {
-    start.setMonth(start.getMonth() - 6);
+    start.setMonth(start.getMonth() - 13);
     startStr = yyyymm(start); endStr = yyyymm(end);
   }
 
-  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_KEY}/json/kr/1/100/${stat.statCode}/${stat.period}/${startStr}/${endStr}/${stat.itemCode}`;
+  // 일별 데이터는 100건(약 3~4개월)로는 부족하므로 넉넉히 요청
+  const rowCount = stat.period === 'D' ? 500 : 20;
+  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_KEY}/json/kr/1/${rowCount}/${stat.statCode}/${stat.period}/${startStr}/${endStr}/${stat.itemCode}`;
   const res = await fetch(url);
   if(!res.ok) throw new Error(`ECOS HTTP ${res.status}`);
   const data = await res.json();
