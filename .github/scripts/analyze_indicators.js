@@ -20,7 +20,7 @@ const SUPABASE_URL       = process.env.SUPABASE_URL;
 const SUPABASE_KEY       = process.env.SUPABASE_KEY;
 
 const MAX_KEYWORDS_PER_INDICATOR = 4; // 지표당 개별 검색할 키워드 수 (한도 조절용)
-const TEST_MODE = true; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경
+const TEST_MODE = false; // 테스트 시 true (앞 3개 지표만 실행), 운영 시 false로 변경
 const MAX_NEWS_PER_INDICATOR     = 8; // 최종 병합 후 남길 뉴스 개수
 
 // ── 분석 대상 18개 지표 + 검색 키워드 (중요도순으로 나열, 앞 3개가 개별 검색됨) ──
