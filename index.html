@@ -572,6 +572,7 @@ const Presentation = makeIcon([["path", {
   // 키에 ':meta:' 포함 → perf_meta 테이블, 아니면 perf_data
   function sbTable(key) {
     if (key.indexOf(':env:') !== -1) return 'env_analysis';
+    if (key.indexOf('market:') === 0) return 'market_stats';
     return key.indexOf(':meta:') !== -1 ? 'perf_meta' : 'perf_data';
   }
   const appStorage = {
