@@ -570,7 +570,10 @@ const Presentation = makeIcon([["path", {
   // 키/URL 치환이 됐으면(=서버판) Supabase 모드, 아니면 localStorage 모드
   const SB_ENABLED = SB_URL.indexOf('__') === -1 && SB_ANON.indexOf('__') === -1;
   // 키에 ':meta:' 포함 → perf_meta 테이블, 아니면 perf_data
-  function sbTable(key) { return key.indexOf(':meta:') !== -1 ? 'perf_meta' : 'perf_data'; }
+  function sbTable(key) {
+    if (key.indexOf(':env:') !== -1) return 'env_analysis';
+    return key.indexOf(':meta:') !== -1 ? 'perf_meta' : 'perf_data';
+  }
   const appStorage = {
     async get(key) {
       if (SB_ENABLED) {
