@@ -634,7 +634,218 @@ const Presentation = makeIcon([["path", {
   // 공통 계산 함수 & 상수
   // ─────────────────────────────────────────────────────────────
   const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  function getMonthlyTargets(ind) {
+
+  // ─── AI 외부환경 분석 탭 ──────────────────────────────────────
+  const ENV_TARGET_CODES = {
+    ceo:  ['P-01','P-02','P-03','P-04','P-05-1','P-05-2','P-09'],
+    inst: ['1-1','1-2','2-1','2-2','3-3','4-1','4-2','5','6','7','8-1']
+  };
+
+  function AiAnalysisTab({ ws, indicators, data, indicatorStatus }) {
+    const [envMap, setEnvMap] = React.useState({});
+    const [loading, setLoading] = React.useState(true);
+    const [openCode, setOpenCode] = React.useState(null);
+    const targetCodes = ENV_TARGET_CODES[ws] || [];
+
+    React.useEffect(() => {
+      (async () => {
+        setLoading(true);
+        const result = {};
+        for (const code of targetCodes) {
+          try {
+            const r = await appStorage.get(ws + ':env:' + code, true);
+            if (r?.value) result[code] = JSON.parse(r.value);
+          } catch(e) {}
+        }
+        setEnvMap(result);
+        setLoading(false);
+      })();
+    }, [ws]);
+
+    const indByCode = {};
+    (indicators||[]).forEach(i => { indByCode[i.code] = i; });
+    const statusByCode = {};
+    (indicatorStatus||[]).forEach(i => { statusByCode[i.code] = i; });
+
+    const impText = v => v==='positive'?'긍정':v==='negative'?'부정':'중립';
+    const impCls = v => v==='positive'?'text-emerald-700 bg-emerald-50 border-emerald-200'
+                       :v==='negative'?'text-rose-700 bg-rose-50 border-rose-200'
+                       :'text-slate-600 bg-slate-50 border-slate-200';
+    const impDot = v => v==='positive'?'#10b981':v==='negative'?'#f43f5e':'#94a3b8';
+    const trendIcon = d => d==='improving'?'📈':d==='worsening'?'📉':d==='new'?'🆕':'➡️';
+    const trendCls = d => d==='improving'?'text-emerald-600':d==='worsening'?'text-rose-600':'text-slate-500';
+
+    // 최신 분석일
+    let latestDate = null;
+    Object.values(envMap).forEach(e => {
+      if (e?.analyzedAt) { const d = new Date(e.analyzedAt); if (!latestDate || d > latestDate) latestDate = d; }
+    });
+    const dateStr = latestDate ? latestDate.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}) : '';
+
+    if (loading) return React.createElement('div',{className:'py-24 text-center'},
+      React.createElement('div',{className:'inline-block w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin mb-3'}),
+      React.createElement('p',{className:'text-sm text-slate-400'},'AI 분석 결과를 불러오는 중...')
+    );
+
+    const analyzed = targetCodes.filter(c => envMap[c]?.analysis);
+    if (analyzed.length === 0) {
+      return React.createElement('div',{className:'py-24 text-center'},
+        React.createElement('div',{className:'text-4xl mb-3'},'🤖'),
+        React.createElement('p',{className:'text-slate-600 font-medium mb-1'},'아직 AI 분석 결과가 없습니다'),
+        React.createElement('p',{className:'text-xs text-slate-400'},'매주 월요일 오전, 지표별 외부환경을 자동으로 분석해 채워드립니다.')
+      );
+    }
+
+    // 지표 분류: 부정요인 우세 → 주의 / 긍정요인 우세 → 양호 / 나머지 → 보통
+    const riskItems = [], goodItems = [], neutralItems = [];
+    analyzed.forEach(code => {
+      const a = envMap[code].analysis;
+      const neg = (a.factors||[]).filter(f=>f.impact==='negative').length;
+      const pos = (a.factors||[]).filter(f=>f.impact==='positive').length;
+      const item = { code, name: indByCode[code]?.name || code, a };
+      if (neg > pos) riskItems.push(item);
+      else if (pos > neg) goodItems.push(item);
+      else neutralItems.push(item);
+    });
+
+    // ── 헤더 (AI 느낌) ──
+    const header = React.createElement('div',{
+      className:'relative overflow-hidden rounded-2xl p-6 mb-5',
+      style:{background:'linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%)'}
+    },
+      React.createElement('div',{className:'absolute top-0 right-0 w-48 h-48 rounded-full opacity-20',
+        style:{background:'radial-gradient(circle, #38bdf8 0%, transparent 70%)', transform:'translate(30%,-30%)'}}),
+      React.createElement('div',{className:'relative flex items-start justify-between flex-wrap gap-3'},
+        React.createElement('div',null,
+          React.createElement('div',{className:'flex items-center gap-2 mb-1.5'},
+            React.createElement('span',{className:'text-xl'},'🤖'),
+            React.createElement('h2',{className:'text-lg font-bold text-white'},'AI 외부환경 분석'),
+            React.createElement('span',{className:'px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30'},'AUTO')
+          ),
+          React.createElement('p',{className:'text-sm text-slate-300'},
+            (ws==='ceo'?'기관장 경영계약':'기관 경영평가')+' · 지표 '+analyzed.length+'개 분석 완료'),
+          dateStr && React.createElement('p',{className:'text-xs text-slate-400 mt-0.5'}, dateStr+' 기준 · 최근 뉴스·지수 자동 수집')
+        ),
+        // 스코어보드
+        React.createElement('div',{className:'flex gap-2'},
+          React.createElement('div',{className:'text-center px-3 py-2 rounded-xl bg-white/10 border border-white/10 min-w-[64px]'},
+            React.createElement('div',{className:'text-2xl font-bold text-rose-300'}, riskItems.length),
+            React.createElement('div',{className:'text-[10px] text-slate-300 mt-0.5'},'주의 필요')
+          ),
+          React.createElement('div',{className:'text-center px-3 py-2 rounded-xl bg-white/10 border border-white/10 min-w-[64px]'},
+            React.createElement('div',{className:'text-2xl font-bold text-emerald-300'}, goodItems.length),
+            React.createElement('div',{className:'text-[10px] text-slate-300 mt-0.5'},'여건 양호')
+          ),
+          React.createElement('div',{className:'text-center px-3 py-2 rounded-xl bg-white/10 border border-white/10 min-w-[64px]'},
+            React.createElement('div',{className:'text-2xl font-bold text-slate-200'}, neutralItems.length),
+            React.createElement('div',{className:'text-[10px] text-slate-300 mt-0.5'},'보통')
+          )
+        )
+      )
+    );
+
+    // ── 전체 요약 (주의 지표 우선) ──
+    const summaryLine = (it, dotColor) => React.createElement('li',{key:it.code,
+      className:'flex items-start gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-2 -mx-2',
+      onClick:()=>setOpenCode(openCode===it.code?null:it.code)},
+      React.createElement('span',{className:'mt-1 w-2 h-2 rounded-full flex-shrink-0',style:{background:dotColor}}),
+      React.createElement('span',{className:'text-sm text-slate-700'},
+        React.createElement('b',{className:'text-slate-900'},it.name),
+        React.createElement('span',{className:'text-slate-400 mx-1'},'·'),
+        it.a.outlook || it.a.summary
+      )
+    );
+
+    const summaryCard = React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl p-5 mb-5'},
+      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5'},'📋 이번 주 핵심 동향'),
+      riskItems.length>0 && React.createElement('div',{className:'mb-3'},
+        React.createElement('p',{className:'text-xs font-semibold text-rose-600 mb-1'},'⚠ 주의가 필요한 지표'),
+        React.createElement('ul',null, riskItems.map(it=>summaryLine(it,'#f43f5e')))
+      ),
+      goodItems.length>0 && React.createElement('div',{className: riskItems.length>0?'pt-2 border-t border-slate-100':''},
+        React.createElement('p',{className:'text-xs font-semibold text-emerald-600 mb-1'},'✓ 여건이 양호한 지표'),
+        React.createElement('ul',null, goodItems.map(it=>summaryLine(it,'#10b981')))
+      ),
+      neutralItems.length>0 && React.createElement('div',{className:'pt-2 border-t border-slate-100'},
+        React.createElement('p',{className:'text-xs font-semibold text-slate-500 mb-1'},'· 안정적인 지표'),
+        React.createElement('ul',null, neutralItems.map(it=>summaryLine(it,'#94a3b8')))
+      )
+    );
+
+    // ── 지표별 상세 카드 ──
+    const detailCard = (code) => {
+      const e = envMap[code];
+      const a = e.analysis;
+      const st = statusByCode[code];
+      const ind = indByCode[code];
+      const isOpen = openCode === code;
+      const neg = (a.factors||[]).filter(f=>f.impact==='negative').length;
+      const pos = (a.factors||[]).filter(f=>f.impact==='positive').length;
+      const barColor = neg>pos?'#f43f5e':pos>neg?'#10b981':'#94a3b8';
+
+      return React.createElement('div',{key:code,id:'ai-card-'+code,
+        className:'bg-white border rounded-xl overflow-hidden transition-all '+(isOpen?'border-blue-300 shadow-md':'border-slate-200')},
+        // 좌측 색상 바 + 헤더
+        React.createElement('div',{className:'flex items-stretch cursor-pointer',onClick:()=>setOpenCode(isOpen?null:code)},
+          React.createElement('div',{className:'w-1 flex-shrink-0',style:{background:barColor}}),
+          React.createElement('div',{className:'flex-1 p-4'},
+            React.createElement('div',{className:'flex items-start justify-between gap-2 mb-1'},
+              React.createElement('div',{className:'flex items-center gap-2 flex-wrap'},
+                React.createElement('span',{className:'text-xs text-slate-400 font-mono'},code),
+                React.createElement('span',{className:'font-semibold text-slate-800'}, ind?.name || code),
+                a.trend && React.createElement('span',{className:'text-xs '+trendCls(a.trend.direction)}, trendIcon(a.trend.direction))
+              ),
+              React.createElement('div',{className:'flex items-center gap-1.5 flex-shrink-0'},
+                st && st.achActual!==null && st.achActual!==undefined && React.createElement('span',{
+                  className:'text-[11px] px-2 py-0.5 rounded-full font-medium '+(st.achActual>=100?'bg-emerald-100 text-emerald-700':st.achActual>=90?'bg-amber-100 text-amber-700':st.achActual>=80?'bg-orange-100 text-orange-700':'bg-rose-100 text-rose-700')
+                }, '달성 '+st.achActual.toFixed(0)+'%'),
+                React.createElement('span',{className:'text-slate-300 text-xs'}, isOpen?'▲':'▼')
+              )
+            ),
+            React.createElement('p',{className:'text-sm text-slate-600 leading-relaxed'}, a.summary)
+          )
+        ),
+        // 펼침 영역
+        isOpen && React.createElement('div',{className:'px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/50'},
+          a.factors && React.createElement('div',{className:'flex flex-wrap gap-1.5 my-3'},
+            a.factors.map((f,fi)=>React.createElement('div',{key:fi,
+              className:'flex items-center gap-1.5 border rounded-lg px-2.5 py-1.5 text-xs '+impCls(f.impact)},
+              React.createElement('span',{className:'w-1.5 h-1.5 rounded-full',style:{background:impDot(f.impact)}}),
+              React.createElement('span',{className:'font-semibold'},f.name),
+              React.createElement('span',{className:'opacity-50'},'('+impText(f.impact)+')'),
+              React.createElement('span',{className:'text-slate-500'},'· '+f.description)
+            ))
+          ),
+          a.trend && a.trend.description && React.createElement('div',{className:'flex items-center gap-1.5 text-xs mb-2 '+trendCls(a.trend.direction)},
+            React.createElement('span',null, trendIcon(a.trend.direction)),
+            React.createElement('span',{className:'font-medium'},'전주 대비: '),
+            React.createElement('span',{className:'text-slate-600'}, a.trend.description)
+          ),
+          a.outlook && React.createElement('div',{className:'bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-900 mb-2'},
+            React.createElement('span',{className:'font-semibold'},'📌 전망 '),a.outlook),
+          e.news && e.news.length>0 && React.createElement('details',{className:'mt-1'},
+            React.createElement('summary',{className:'text-xs text-slate-400 cursor-pointer hover:text-slate-600'},'참고 뉴스 '+e.news.length+'건'),
+            React.createElement('div',{className:'mt-1.5 space-y-1'},
+              e.news.map((n,ni)=>React.createElement('a',{key:ni,href:n.link,target:'_blank',rel:'noopener noreferrer',
+                className:'block text-xs text-blue-600 hover:underline truncate'},'• '+n.title))
+            )
+          )
+        )
+      );
+    };
+
+    return React.createElement('div',null,
+      header,
+      summaryCard,
+      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-2 px-1'},'지표별 상세 분석'),
+      React.createElement('div',{className:'space-y-2.5'},
+        // 주의 → 양호 → 보통 순으로 정렬 표시
+        [].concat(riskItems, goodItems, neutralItems).map(it => detailCard(it.code))
+      )
+    );
+  }
+
+    function getMonthlyTargets(ind) {
     let monthly;
     if (!ind.quarterlyTargets) {
       monthly = MONTHS.map(() => ind.annualTarget);
@@ -2902,6 +3113,11 @@ const Presentation = makeIcon([["path", {
       id: 'input',
       label: '실적입력',
       icon: Edit3
+    }, {
+      id: 'analysis',
+      label: 'AI분석',
+      icon: TrendingUp,
+      isNew: true
     }, ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
@@ -3043,10 +3259,12 @@ const Presentation = makeIcon([["path", {
     }, ceoTabs.map(t => /*#__PURE__*/React.createElement("button", {
       key: t.id,
       onClick: () => setTab(t.id),
-      className: `px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 transition ${tab === t.id ? 'border-white text-white' : 'border-transparent text-slate-400 hover:text-white'}`
+      className: `relative px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 transition ${tab === t.id ? 'border-white text-white' : 'border-transparent text-slate-400 hover:text-white'}`
     }, /*#__PURE__*/React.createElement(t.icon, {
       className: "w-4 h-4"
-    }), t.label)))), /*#__PURE__*/React.createElement("main", {
+    }), t.label, t.isNew && /*#__PURE__*/React.createElement("span", {
+      className: "absolute top-1 right-0.5 px-1 text-[7px] font-bold bg-rose-500 text-white rounded-full leading-tight"
+    }, "N"))))), /*#__PURE__*/React.createElement("main", {
       className: "max-w-[1600px] mx-auto px-6 py-6"
     }, tab === 'dashboard' && /*#__PURE__*/React.createElement(CeoDashboard, {
       indicatorStatus: indicatorStatus,
@@ -3062,6 +3280,8 @@ const Presentation = makeIcon([["path", {
       saveData: saveData,
       year: year,
       refMonth: refMonth
+    }), tab === 'analysis' && /*#__PURE__*/React.createElement(AiAnalysisTab, {
+      ws: 'ceo', indicators: indicators, data: data, indicatorStatus: indicatorStatus
     }), tab === 'manage' && /*#__PURE__*/React.createElement(CeoManageTab, {
       indicators: indicators,
       saveIndicators: saveIndicators
@@ -4632,6 +4852,11 @@ const Presentation = makeIcon([["path", {
       id: 'input',
       label: '실적입력',
       icon: Edit3
+    }, {
+      id: 'analysis',
+      label: 'AI분석',
+      icon: TrendingUp,
+      isNew: true
     }, ...(editMode && canManage ? [{
       id: 'manage',
       label: '지표관리',
@@ -4773,10 +4998,12 @@ const Presentation = makeIcon([["path", {
     }, instTabs.map(t => /*#__PURE__*/React.createElement("button", {
       key: t.id,
       onClick: () => setTab(t.id),
-      className: `px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 transition ${tab === t.id ? 'border-white text-white' : 'border-transparent text-slate-400 hover:text-white'}`
+      className: `relative px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 transition ${tab === t.id ? 'border-white text-white' : 'border-transparent text-slate-400 hover:text-white'}`
     }, /*#__PURE__*/React.createElement(t.icon, {
       className: "w-4 h-4"
-    }), t.label)))), /*#__PURE__*/React.createElement("main", {
+    }), t.label, t.isNew && /*#__PURE__*/React.createElement("span", {
+      className: "absolute top-1 right-0.5 px-1 text-[7px] font-bold bg-rose-500 text-white rounded-full leading-tight"
+    }, "N"))))), /*#__PURE__*/React.createElement("main", {
       className: "max-w-[1600px] mx-auto px-6 py-6"
     }, tab === 'dashboard' && /*#__PURE__*/React.createElement("div", {
       className: "space-y-6"
@@ -5259,6 +5486,8 @@ const Presentation = makeIcon([["path", {
       data: data,
       saveData: saveData,
       refMonth: refMonth
+    }), tab === 'analysis' && /*#__PURE__*/React.createElement(AiAnalysisTab, {
+      ws: 'inst', indicators: indicators, data: data, indicatorStatus: indicatorStatus
     }), tab === 'manage' && /*#__PURE__*/React.createElement(InstManageTab, {
       indicators: indicators,
       saveIndicators: saveIndicators
