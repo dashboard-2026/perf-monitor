@@ -641,8 +641,9 @@ const Presentation = makeIcon([["path", {
 
   // ─── AI 외부환경 분석 탭 ──────────────────────────────────────
   const ENV_TARGET_CODES = {
-    ceo:  ['P-01','P-02','P-03','P-04','P-05-1','P-05-2','P-09'],
-    inst: ['1-1','1-2','2-1','2-2','3-3','4-1','4-2','5','6','7','8-1']
+    // P-04, 3-3(전세보증 이행도)은 분석은 계속 수행하되 화면 표시에서 제외
+    ceo:  ['P-01','P-02','P-03','P-05-1','P-05-2','P-09'],
+    inst: ['1-1','1-2','2-1','2-2','4-1','4-2','5','6','7','8-1']
   };
 
 
@@ -686,7 +687,7 @@ const Presentation = makeIcon([["path", {
           const isEcos = s.source === 'ecos';
           return React.createElement('div',{key:id,className:'bg-white border border-slate-200 rounded-lg p-3'},
             React.createElement('p',{className:'text-xs text-slate-500 mb-1 truncate'}, s.name),
-            React.createElement('p',{className:'text-lg font-bold text-slate-800'},
+            React.createElement('p',{className:'text-2xl font-extrabold text-slate-800 tracking-tight'},
               s.value + (isEcos ? '%' : '')
             ),
             isEcos
@@ -807,31 +808,37 @@ const Presentation = makeIcon([["path", {
       )
     );
 
-    // ── 전체 요약 (주의 지표 우선) ──
-    const summaryLine = (it, dotColor) => React.createElement('li',{key:it.code,
-      className:'flex items-start gap-2 py-1.5 cursor-pointer hover:bg-slate-50 rounded px-2 -mx-2',
-      onClick:()=>setOpenCode(openCode===it.code?null:it.code)},
-      React.createElement('span',{className:'mt-1 w-2 h-2 rounded-full flex-shrink-0',style:{background:dotColor}}),
-      React.createElement('span',{className:'text-sm text-slate-700'},
-        React.createElement('b',{className:'text-slate-900'},it.name),
-        React.createElement('span',{className:'text-slate-400 mx-1'},'·'),
-        it.a.outlook || it.a.summary
-      )
-    );
+    // ── 전체 요약: 하이라이트 카드형 ──
+    const highlightCard = (it, tone) => {
+      const toneMap = {
+        risk:    { bg:'bg-rose-50', border:'border-rose-200', dot:'#f43f5e', label:'text-rose-700', badge:'bg-rose-100 text-rose-700' },
+        good:    { bg:'bg-emerald-50', border:'border-emerald-200', dot:'#10b981', label:'text-emerald-700', badge:'bg-emerald-100 text-emerald-700' },
+        neutral: { bg:'bg-slate-50', border:'border-slate-200', dot:'#94a3b8', label:'text-slate-600', badge:'bg-slate-100 text-slate-600' },
+      }[tone];
+      return React.createElement('div',{key:it.code,
+        className:`${toneMap.bg} border ${toneMap.border} rounded-lg p-3 cursor-pointer hover:shadow-sm transition-shadow`,
+        onClick:()=>{ setOpenCode(it.code); const el=document.getElementById('ai-card-'+it.code); if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),50); }},
+        React.createElement('div',{className:'flex items-center gap-1.5 mb-1'},
+          React.createElement('span',{className:'w-2 h-2 rounded-full flex-shrink-0',style:{background:toneMap.dot}}),
+          React.createElement('span',{className:'text-sm font-bold text-slate-900 truncate'},it.name)
+        ),
+        React.createElement('p',{className:'text-xs '+toneMap.label+' leading-relaxed line-clamp-2'}, it.a.outlook || it.a.summary)
+      );
+    };
 
     const summaryCard = React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl p-5 mb-5'},
-      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5'},'📋 이번 주 핵심 동향'),
+      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-3 flex items-center gap-1.5'},'📋 이번 주 핵심 동향'),
       riskItems.length>0 && React.createElement('div',{className:'mb-3'},
-        React.createElement('p',{className:'text-xs font-semibold text-rose-600 mb-1'},'⚠ 주의가 필요한 지표'),
-        React.createElement('ul',null, riskItems.map(it=>summaryLine(it,'#f43f5e')))
+        React.createElement('p',{className:'text-xs font-bold text-rose-600 mb-1.5'},'⚠ 주의가 필요한 지표 · '+riskItems.length+'개'),
+        React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-2'}, riskItems.map(it=>highlightCard(it,'risk')))
       ),
-      goodItems.length>0 && React.createElement('div',{className: riskItems.length>0?'pt-2 border-t border-slate-100':''},
-        React.createElement('p',{className:'text-xs font-semibold text-emerald-600 mb-1'},'✓ 여건이 양호한 지표'),
-        React.createElement('ul',null, goodItems.map(it=>summaryLine(it,'#10b981')))
+      goodItems.length>0 && React.createElement('div',{className: riskItems.length>0?'pt-3 mt-1 border-t border-slate-100':''},
+        React.createElement('p',{className:'text-xs font-bold text-emerald-600 mb-1.5'},'✓ 여건이 양호한 지표 · '+goodItems.length+'개'),
+        React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-2'}, goodItems.map(it=>highlightCard(it,'good')))
       ),
-      neutralItems.length>0 && React.createElement('div',{className:'pt-2 border-t border-slate-100'},
-        React.createElement('p',{className:'text-xs font-semibold text-slate-500 mb-1'},'· 안정적인 지표'),
-        React.createElement('ul',null, neutralItems.map(it=>summaryLine(it,'#94a3b8')))
+      neutralItems.length>0 && React.createElement('div',{className:'pt-3 mt-1 border-t border-slate-100'},
+        React.createElement('p',{className:'text-xs font-bold text-slate-500 mb-1.5'},'· 안정적인 지표 · '+neutralItems.length+'개'),
+        React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-2'}, neutralItems.map(it=>highlightCard(it,'neutral')))
       )
     );
 
@@ -844,23 +851,28 @@ const Presentation = makeIcon([["path", {
       const isOpen = openCode === code;
       const neg = (a.factors||[]).filter(f=>f.impact==='negative').length;
       const pos = (a.factors||[]).filter(f=>f.impact==='positive').length;
-      const barColor = neg>pos?'#f43f5e':pos>neg?'#10b981':'#94a3b8';
+      const tone = neg>pos ? 'risk' : pos>neg ? 'good' : 'neutral';
+      const toneStyle = {
+        risk:    { bar:'#f43f5e', bg:isOpen?'bg-rose-50/40':'bg-white', border:isOpen?'border-rose-300':'border-slate-200' },
+        good:    { bar:'#10b981', bg:isOpen?'bg-emerald-50/40':'bg-white', border:isOpen?'border-emerald-300':'border-slate-200' },
+        neutral: { bar:'#94a3b8', bg:isOpen?'bg-slate-50/60':'bg-white', border:isOpen?'border-slate-300':'border-slate-200' },
+      }[tone];
 
       return React.createElement('div',{key:code,id:'ai-card-'+code,
-        className:'bg-white border rounded-xl overflow-hidden transition-all '+(isOpen?'border-blue-300 shadow-md':'border-slate-200')},
+        className:`${toneStyle.bg} border rounded-xl overflow-hidden transition-all ${toneStyle.border} ${isOpen?'shadow-md':''}`},
         // 좌측 색상 바 + 헤더
         React.createElement('div',{className:'flex items-stretch cursor-pointer',onClick:()=>setOpenCode(isOpen?null:code)},
-          React.createElement('div',{className:'w-1 flex-shrink-0',style:{background:barColor}}),
+          React.createElement('div',{className:'w-1.5 flex-shrink-0',style:{background:toneStyle.bar}}),
           React.createElement('div',{className:'flex-1 p-4'},
-            React.createElement('div',{className:'flex items-start justify-between gap-2 mb-1'},
+            React.createElement('div',{className:'flex items-start justify-between gap-2 mb-1.5'},
               React.createElement('div',{className:'flex items-center gap-2 flex-wrap'},
-                React.createElement('span',{className:'text-xs text-slate-400 font-mono'},code),
-                React.createElement('span',{className:'font-semibold text-slate-800'}, ind?.name || code),
-                a.trend && React.createElement('span',{className:'text-xs '+trendCls(a.trend.direction)}, trendIcon(a.trend.direction))
+                React.createElement('span',{className:'text-[11px] text-slate-400 font-mono'},code),
+                React.createElement('span',{className:'text-base font-bold text-slate-900'}, ind?.name || code),
+                a.trend && React.createElement('span',{className:'text-sm '+trendCls(a.trend.direction)}, trendIcon(a.trend.direction))
               ),
               React.createElement('div',{className:'flex items-center gap-1.5 flex-shrink-0'},
                 st && st.achActual!==null && st.achActual!==undefined && React.createElement('span',{
-                  className:'text-[11px] px-2 py-0.5 rounded-full font-medium '+(st.achActual>=100?'bg-emerald-100 text-emerald-700':st.achActual>=90?'bg-amber-100 text-amber-700':st.achActual>=80?'bg-orange-100 text-orange-700':'bg-rose-100 text-rose-700')
+                  className:'text-xs px-2 py-0.5 rounded-full font-bold '+(st.achActual>=100?'bg-emerald-100 text-emerald-700':st.achActual>=90?'bg-amber-100 text-amber-700':st.achActual>=80?'bg-orange-100 text-orange-700':'bg-rose-100 text-rose-700')
                 }, '달성 '+st.achActual.toFixed(0)+'%'),
                 React.createElement('span',{className:'text-slate-300 text-xs'}, isOpen?'▲':'▼')
               )
