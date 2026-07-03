@@ -107,9 +107,9 @@ async function searchNewsForKeyword(keyword){
   const data = await res.json();
   if(!data.items) return [];
   // 최근 2주 이내 뉴스만 필터링 (네이버 API는 date 파라미터가 없어 pubDate로 직접 필터링)
-  const twoWeeksAgo = Date.now() - 14*24*60*60*1000;
+  const oneMonthAgo = Date.now() - 30*24*60*60*1000;
   return data.items
-    .filter(i => new Date(i.pubDate).getTime() >= twoWeeksAgo)
+    .filter(i => new Date(i.pubDate).getTime() >= oneMonthAgo)
     .map(i=>({ title:stripHtml(i.title), snippet:stripHtml(i.description), link:i.originallink||i.link, keyword }));
 }
 
@@ -186,29 +186,30 @@ ${prevText}
 2. [방향성 판단] 지표 설명의 "높을수록/낮을수록 좋음"을 기준으로 impact를 판정하세요. 예: 보증사고율은 낮을수록 좋은 지표이므로, "사고 증가" 뉴스는 negative입니다. 지표 실적에 유리하면 positive, 불리하면 negative, 중립이면 neutral.
 3. [수치 우선] 뉴스에 지수·수치가 있으면 전월 대비·전년동월 대비 변동(상승/하락/보합)을 반드시 확인해 summary와 description에 구체적으로 반영하세요. 비교 수치가 없으면 억지로 만들지 말고 방향성만 서술하세요(수치를 지어내지 마세요).
 4. [변화 추이] 지난주 분석이 있으면 이번 주와 비교해 달라진 점을 trend에 반영하세요. 없으면 direction을 "new"로 하세요.
-5. [문체] "지속적인 모니터링이 필요하다", "귀추가 주목된다", "예의주시할 필요가 있다" 같은 상투적·공허한 표현을 금지합니다. 구체적 사실·수치·인과관계 중심으로 간결하게 쓰세요.
+5. [문체 — 반드시 준수] 공공기관 보고서 문체(개조식 "~함", "~임", "~됨" 체)로만 작성하세요. "~습니다", "~한다", "~해요" 같은 다른 어미는 절대 쓰지 마세요. "지속적인 모니터링이 필요하다", "귀추가 주목된다", "예의주시할 필요가 있다" 같은 상투적·공허한 표현도 금지합니다. 구체적 사실·수치·인과관계 중심으로 간결하게 쓰세요.
+   예시 어미: "상승함", "확대됨", "전망임", "판단됨", "필요함" (O) / "상승했다", "확대되었습니다", "필요해요" (X)
 6. [분량 엄수 — 중요] summary는 반드시 2문장, 총 120자 이내로 쓰세요. factors의 description은 각 40자 이내, outlook은 1문장 50자 이내, trend.description은 1문장 40자 이내로 쓰세요. 분량을 넘기면 출력이 잘려 시스템 오류가 발생하니 반드시 지키세요.
 
-## 좋은 출력 예시 (분량 기준 그대로 참고)
+## 좋은 출력 예시 (분량·문체 기준 그대로 참고)
 {
-  "summary": "5월 건설공사비지수 137.67로 전월비 0.40%, 전년비 5.07% 상승. 자재비 부담이 PF 보증 수요를 압박한다.",
+  "summary": "5월 건설공사비지수 137.67로 전월비 0.40%, 전년비 5.07% 상승함. 자재비 부담이 PF 보증 수요를 압박하는 것으로 판단됨.",
   "factors": [
-    { "name": "공사비 상승", "impact": "negative", "description": "지수 전년비 5.07% 상승, 사업 원가 부담 확대" },
-    { "name": "PF 시장 위축", "impact": "negative", "description": "고금리로 PF 심사 강화, 신규 수요 둔화" }
+    { "name": "공사비 상승", "impact": "negative", "description": "지수 전년비 5.07% 상승, 사업 원가 부담 확대됨" },
+    { "name": "PF 시장 위축", "impact": "negative", "description": "고금리로 PF 심사 강화, 신규 수요 둔화됨" }
   ],
-  "outlook": "공사비 상승세 지속 시 보증 실적 회복은 제한적일 전망.",
-  "trend": { "direction": "worsening", "description": "전주 대비 공사비지수 추가 상승, 부담 확대." }
+  "outlook": "공사비 상승세 지속 시 보증 실적 회복은 제한적일 전망임.",
+  "trend": { "direction": "worsening", "description": "전주 대비 공사비지수 추가 상승, 부담 확대됨." }
 }
 
 ## 출력 형식
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트·마크다운·설명은 절대 포함하지 마세요. 문자열 안에 큰따옴표(")를 쓸 일이 있으면 반드시 \\" 로 이스케이프하세요.
 {
-  "summary": "2문장, 120자 이내. 현재 외부환경 핵심을 수치와 함께 요약",
+  "summary": "2문장, 120자 이내, 보고서체(~함/~임). 현재 외부환경 핵심을 수치와 함께 요약",
   "factors": [
-    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "40자 이내 한 문장. 가능하면 전월/전년동월 대비 수치 포함" }
+    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "40자 이내 한 문장, 보고서체. 가능하면 전월/전년동월 대비 수치 포함" }
   ],
-  "outlook": "향후 1~2개월 전망, 50자 이내 한 문장",
-  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점, 40자 이내 한 문장 (지난주 분석 없으면 '이번이 첫 분석입니다')" }
+  "outlook": "향후 1~2개월 전망, 50자 이내 한 문장, 보고서체",
+  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점, 40자 이내 한 문장, 보고서체 (지난주 분석 없으면 '이번이 첫 분석임')" }
 }
 factors는 2~4개로 작성하세요.`;
 
