@@ -198,13 +198,13 @@ factors는 2~4개로 작성하세요.`;
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,{
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3,maxOutputTokens:1200} })
+    body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.3,maxOutputTokens:2048} })
   });
   if(!res.ok) throw new Error('Gemini: '+await res.text());
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   const m = text.match(/\{[\s\S]*\}/);
-  if(!m) throw new Error('JSON 파싱 실패');
+  if(!m) throw new Error('JSON 파싱 실패 - 원문(앞 500자): ' + (text.slice(0,500) || '(빈 응답, finishReason: ' + (data.candidates?.[0]?.finishReason || '알수없음') + ')'));
   return JSON.parse(m[0]);
 }
 
@@ -236,7 +236,7 @@ async function saveToSupabase(ws, code, analysis, news){
       console.log(` ✅ (뉴스 ${news.length}건${previous?', 전주비교 O':', 첫분석'})`);
       ok++;
     }catch(e){
-      console.log(` ❌ ${e.message.slice(0,300)}`);
+      console.log(` ❌ ${e.message.slice(0,600)}`);
       fail++;
     }
     await sleep(500);
