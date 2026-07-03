@@ -86,11 +86,29 @@ async function fetchEcosStat(stat){
     prevLabel = '전월 대비';
   }
 
+  // 그래프용 시계열: 일별이면 월말값으로 압축, 월별이면 그대로 → 최근 12포인트
+  function buildSeries() {
+    let points;
+    if (stat.period === 'D') {
+      // 월별 마지막 값만 추출
+      const byMonth = {};
+      for (const r of rows) {
+        const ym = r.TIME.slice(0,6);
+        byMonth[ym] = parseFloat(r.DATA_VALUE); // 정렬돼 있어 마지막이 월말값
+      }
+      points = Object.keys(byMonth).sort().map(ym => ({ t: ym, v: byMonth[ym] }));
+    } else {
+      points = rows.map(r => ({ t: r.TIME, v: parseFloat(r.DATA_VALUE) }));
+    }
+    return points.slice(-12); // 최근 12포인트
+  }
+
   return {
     id: stat.id, name: stat.name, unit: stat.unit,
     value: latestValue, asOf: latest.TIME,
     prevValue, prevLabel,
     change: prevValue !== null ? +(latestValue - prevValue).toFixed(3) : null,
+    series: buildSeries(),
   };
 }
 
@@ -138,13 +156,17 @@ async function fetchRebStat(stat){
   const prevMonth = findByOffset(1);
   const prevYear = findByOffset(12);
 
+  // 그래프용 시계열: 최근 12개월
+  const series = rows.slice(-12).map(r => ({ t: r.WRTTIME_IDTFR_ID, v: +parseFloat(r.DTA_VAL).toFixed(3) }));
+
   return {
     id: stat.id, name: stat.name, unit: '',
-    value: latestValue, asOf: latestTime,
+    value: +latestValue.toFixed(3), asOf: latestTime,
     momChange: prevMonth !== null ? +(latestValue - prevMonth).toFixed(2) : null,
     momPct: prevMonth !== null ? +(((latestValue - prevMonth) / prevMonth) * 100).toFixed(2) : null,
     yoyChange: prevYear !== null ? +(latestValue - prevYear).toFixed(2) : null,
     yoyPct: prevYear !== null ? +(((latestValue - prevYear) / prevYear) * 100).toFixed(2) : null,
+    series,
   };
 }
 
