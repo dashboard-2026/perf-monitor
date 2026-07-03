@@ -116,18 +116,28 @@ async function fetchEcosStat(stat){
 async function fetchRebStat(stat){
   // 선택 파라미터(CLS_ID/ITM_ID/GRP_ID)는 통계표마다 체계가 달라 확신할 수 없으므로
   // 필수 파라미터만으로 최근 13개월치 전체를 받아온 뒤, "전국" 항목을 코드에서 걸러낸다.
+  // 이 통계표는 지역·유형별로 행이 매우 많아 1페이지(1000건)로는 부족할 수 있어 여러 페이지를 이어 받는다.
   const end = new Date();
   const start = new Date(); start.setMonth(start.getMonth() - 13);
   const startStr = `${start.getFullYear()}${String(start.getMonth()+1).padStart(2,'0')}`;
   const endStr = `${end.getFullYear()}${String(end.getMonth()+1).padStart(2,'0')}`;
 
-  const url = `https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?KEY=${REB_KEY}&Type=json&pIndex=1&pSize=1000&STATBL_ID=${stat.statblId}&DTACYCLE_CD=MM&START_WRTTIME=${startStr}&END_WRTTIME=${endStr}`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error(`REB HTTP ${res.status}`);
-  const data = await res.json();
-
-  const body = data?.SttsApiTblData?.[1]?.row;
-  if (!body || body.length === 0) throw new Error('REB: 데이터 없음 - ' + JSON.stringify(data).slice(0,300));
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 10; // 최대 10,000건까지 확보
+  let body = [];
+  for (let pIndex = 1; pIndex <= MAX_PAGES; pIndex++) {
+    const url = `https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?KEY=${REB_KEY}&Type=json&pIndex=${pIndex}&pSize=${PAGE_SIZE}&STATBL_ID=${stat.statblId}&DTACYCLE_CD=MM&START_WRTTIME=${startStr}&END_WRTTIME=${endStr}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`REB HTTP ${res.status}`);
+    const data = await res.json();
+    const page = data?.SttsApiTblData?.[1]?.row;
+    if (!page || page.length === 0) break; // 더 이상 데이터 없음
+    body = body.concat(page);
+    if (page.length < PAGE_SIZE) break; // 마지막 페이지
+    await sleep(200);
+  }
+  if (body.length === 0) throw new Error('REB: 데이터 없음');
+  console.log(`   (참고: ${stat.name} 총 ${body.length}건 수신)`);
 
   // "전국"이 포함된 항목만 필터링 (CLS_NM, ITM_NM, GRP_NM 중 어디에 있을지 몰라 모두 확인)
   const nationwide = body.filter(r =>
@@ -138,6 +148,9 @@ async function fetchRebStat(stat){
   const rows = nationwide.length > 0 ? nationwide : body; // 전국 필터링 실패 시 전체 사용(디버깅용)
   if (nationwide.length === 0) {
     console.log(`   (참고: "전국" 필터 매칭 0건, 전체 ${body.length}건 중 첫 행 샘플: ${JSON.stringify(body[0]).slice(0,300)})`);
+  } else {
+    const months = [...new Set(nationwide.map(r => r.WRTTIME_IDTFR_ID))].sort();
+    console.log(`   (참고: "전국" 매칭 ${nationwide.length}건, 확보된 월: ${months[0]}~${months[months.length-1]})`);
   }
 
   rows.sort((a,b) => (a.WRTTIME_IDTFR_ID||'').localeCompare(b.WRTTIME_IDTFR_ID||''));
