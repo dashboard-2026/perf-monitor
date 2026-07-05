@@ -766,8 +766,8 @@ const Presentation = makeIcon([["path", {
       );
     };
 
-    return React.createElement('div',{className:'mb-5'},
-      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-2 px-1'},'📊 주요 시장 지표'),
+    return React.createElement('div',{className:'bg-slate-50/70 border border-slate-100 rounded-xl p-4'},
+      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-3 px-1'},'📊 주요 시장 지표'),
       // 반응형: 모바일 1개 / sm 2개 / lg 4개
       React.createElement('div',{className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2'},
         firstRow.map(id => renderCard(id, false))
@@ -860,7 +860,7 @@ const Presentation = makeIcon([["path", {
 
     // ── 헤더 (AI 느낌) ──
     const header = React.createElement('div',{
-      className:'relative overflow-hidden rounded-2xl p-6 mb-5',
+      className:'relative overflow-hidden rounded-2xl p-6',
       style:{background:'linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%)'}
     },
       React.createElement('div',{className:'absolute top-0 right-0 w-48 h-48 rounded-full opacity-20',
@@ -915,7 +915,7 @@ const Presentation = makeIcon([["path", {
       );
     };
 
-    const summaryCard = React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl p-5 mb-5'},
+    const summaryCard = React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl p-5'},
       React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-3 flex items-center gap-1.5'},'📋 이번 주 핵심 동향'),
       riskItems.length>0 && React.createElement('div',{className:'mb-3'},
         React.createElement('p',{className:'text-xs font-bold text-rose-600 mb-1.5'},'⚠ 주의가 필요한 지표 · '+riskItems.length+'개'),
@@ -952,7 +952,7 @@ const Presentation = makeIcon([["path", {
         // 좌측 색상 바 + 헤더
         React.createElement('div',{className:'flex items-stretch cursor-pointer',onClick:()=>setOpenCode(isOpen?null:code)},
           React.createElement('div',{className:'w-1.5 flex-shrink-0',style:{background:toneStyle.bar}}),
-          React.createElement('div',{className:'flex-1 p-4'},
+          React.createElement('div',{className:'flex-1 p-5'},
             React.createElement('div',{className:'flex items-start justify-between gap-2 mb-1.5'},
               React.createElement('div',{className:'flex items-center gap-2 flex-wrap'},
                 React.createElement('span',{className:'text-[11px] text-slate-400 font-mono'},code),
@@ -998,14 +998,18 @@ const Presentation = makeIcon([["path", {
       );
     };
 
-    return React.createElement('div',null,
+    return React.createElement('div',{className:'space-y-8'},
       header,
       React.createElement(MarketStatsPanel),
       summaryCard,
-      React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-2 px-1'},'지표별 상세 분석'),
-      React.createElement('div',{className:'space-y-2.5'},
-        // 주의 → 양호 → 보통 순으로 정렬 표시
-        [].concat(riskItems, goodItems, neutralItems).map(it => detailCard(it.code))
+      React.createElement('div',{className:'pt-2 border-t border-slate-200'},
+        React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-4 mt-6 px-1 flex items-center gap-1.5'},
+          React.createElement('span',{className:'text-slate-400'},'▸'),'지표별 상세 분석'
+        ),
+        React.createElement('div',{className:'space-y-3'},
+          // 주의 → 양호 → 보통 순으로 정렬 표시
+          [].concat(riskItems, goodItems, neutralItems).map(it => detailCard(it.code))
+        )
       )
     );
   }
@@ -3498,8 +3502,8 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement(t.icon, {
       className: "w-4 h-4"
     }), t.label, t.isNew && /*#__PURE__*/React.createElement("span", {
-      className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-white text-slate-700 rounded border border-slate-200 shadow-sm leading-none"
-    }, /*#__PURE__*/React.createElement(GeminiMark, { size: 9, grad: false, color: "#4285F4" }), "AI"))))), /*#__PURE__*/React.createElement("main", {
+      className: "inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold tracking-wide uppercase rounded-full bg-sky-400/15 text-sky-300 border border-sky-400/25"
+    }, "AI"))))), /*#__PURE__*/React.createElement("main", {
       className: "max-w-[1600px] mx-auto px-6 py-6"
     }, tab === 'dashboard' && /*#__PURE__*/React.createElement(CeoDashboard, {
       indicatorStatus: indicatorStatus,
@@ -4651,6 +4655,16 @@ const Presentation = makeIcon([["path", {
         className: "mb-3"
       }, /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
+      }, "\uC791\uB144 \uC2E4\uC801 (\uB300\uC678\uB3D9\uD5A5\uBD84\uC11D AI\uAC00 \uC804\uB144 \ub300\ube44 \uD310\uB2E8\uC5D0 \ucc38\uACE0, \uBE44\uC6CC\ub450\uBA74 \uBBF8\uc0AC\uC6A9)"), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: ind.lastYearActual ?? '',
+        onChange: e => handleField(idx, 'lastYearActual', e.target.value === '' ? null : parseFloat(e.target.value)),
+        placeholder: "\uC791\uB144 \uc5f0\uac04 \uC2E4\uC801 \uC218\uCE58 (\uc608: 1128) \u2014 \uc62c\ud574 \ubaa9\ud45c \ub300\ube44 %\ub294 \uc790\ub3d9 \ud658\uc0b0\ub428",
+        className: "w-full px-2 py-1.5 border rounded text-sm"
+      })), /*#__PURE__*/React.createElement("div", {
+        className: "mb-3"
+      }, /*#__PURE__*/React.createElement("label", {
+        className: "text-xs font-medium text-slate-600 block mb-1"
       }, "\uC0B0\uC2DD (\uC9C0\uD45C \uACC4\uC0B0\uC2DD)"), /*#__PURE__*/React.createElement("input", {
         value: ind.formula || '',
         onChange: e => handleField(idx, 'formula', e.target.value),
@@ -5294,8 +5308,8 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement(t.icon, {
       className: "w-4 h-4"
     }), t.label, t.isNew && /*#__PURE__*/React.createElement("span", {
-      className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-white text-slate-700 rounded border border-slate-200 shadow-sm leading-none"
-    }, /*#__PURE__*/React.createElement(GeminiMark, { size: 9, grad: false, color: "#4285F4" }), "AI"))))), /*#__PURE__*/React.createElement("main", {
+      className: "inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold tracking-wide uppercase rounded-full bg-sky-400/15 text-sky-300 border border-sky-400/25"
+    }, "AI"))))), /*#__PURE__*/React.createElement("main", {
       className: "max-w-[1600px] mx-auto px-6 py-6"
     }, tab === 'dashboard' && /*#__PURE__*/React.createElement("div", {
       className: "space-y-6"
@@ -6183,6 +6197,12 @@ const Presentation = makeIcon([["path", {
         onChange: e => handleField(idx, 'definition', e.target.value),
         placeholder: "\uC9C0\uD45C\uC815\uC758 (\uC0C1\uC138 \uCCAB\uC904\uC5D0 \uD45C\uC2DC, \uBE44\uC6B0\uBA74 \uD45C\uC2DC \uC548\uD568)",
         className: "w-full px-1 mt-1 border rounded text-xs text-blue-500"
+      }), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: ind.lastYearActual ?? '',
+        onChange: e => handleField(idx, 'lastYearActual', e.target.value === '' ? null : parseFloat(e.target.value)),
+        placeholder: "\uC791\uB144 \uC2E4\uC801 \uC218\uCE58 (AI \uC804\uB144\ub300\ube44 \uD310\uB2E8\uC6A9, \uBE44\uC6B0\uBA74 \uBBF8\uc0AC\uC6A9)",
+        className: "w-full px-1 mt-1 border rounded text-xs text-emerald-600"
       })), /*#__PURE__*/React.createElement("td", {
         className: "px-2 py-1"
       }, /*#__PURE__*/React.createElement("input", {
