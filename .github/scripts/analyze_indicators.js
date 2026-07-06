@@ -184,7 +184,10 @@ async function loadPerfContext(){
   for (const ws of ['ceo','inst']) {
     const indicators = await sbGet('perf_meta', `${ws}:meta:indicators`);
     const data = await sbGet('perf_data', `${ws}:data:${year}`);
+    // 진단: 데이터 로딩 상태 (수치 없이 존재 여부·개수만)
+    console.log(`   [진단] ${ws}: 지표정보 ${Array.isArray(indicators) ? indicators.length+'개' : '없음('+typeof indicators+')'}, 실적데이터 ${data ? '있음('+Object.keys(data).length+'코드)' : '없음'}`);
     if (!indicators) continue;
+    let cntActual = 0, cntLastYear = 0;
     for (const ind of indicators) {
       const entry = {};
       try {
@@ -194,15 +197,17 @@ async function loadPerfContext(){
         let actual = null;
         if (rec?.actual && typeof rec.actual === 'object') {
           for (let m = 12; m >= 1; m--) {
-            const v = rec.actual[m];
+            const v = rec.actual[m] ?? rec.actual[String(m)];
             if (v !== null && v !== undefined && v !== '') { actual = parseFloat(v); break; }
           }
         }
         if (actual !== null && annualTarget) {
           entry.achRate = Math.round((actual / annualTarget) * 1000) / 10; // 소수1자리 %
+          cntActual++;
         }
         const hasLastYearActual = ind.lastYearActual !== null && ind.lastYearActual !== undefined;
         const hasLastYearTarget = ind.lastYearTarget !== null && ind.lastYearTarget !== undefined;
+        if (hasLastYearActual) cntLastYear++;
         // 예산 증가율 계산 기준: 금액 지표는 annualTarget, %지표는 별도 입력한 currentYearBudget 사용
         const currentBudget = ind.currentYearBudget ?? annualTarget;
         if (hasLastYearActual && hasLastYearTarget) {
@@ -220,6 +225,7 @@ async function loadPerfContext(){
         ctx[`${ws}:${ind.code}`] = entry;
       }
     }
+    console.log(`   [진단] ${ws}: 올해실적 잡힌 지표 ${cntActual}개, 작년실적 입력된 지표 ${cntLastYear}개`);
   }
   return ctx;
 }
@@ -437,6 +443,14 @@ async function saveToSupabase(ws, code, analysis, news){
   const marketCtx = await loadMarketContext();
   const perfCtx = await loadPerfContext();
   console.log(`시장지표 ${Object.keys(marketCtx).length}종, 실적 컨텍스트 ${Object.keys(perfCtx).length}개 지표 로딩 완료\n`);
+
+  // 진단 모드: 실적·시장 로딩 상태만 확인하고 Gemini 호출 없이 종료 (과금 0)
+  if (process.env.DIAGNOSE === '1') {
+    console.log('🔍 진단 모드 — Gemini 호출 없이 종료합니다.');
+    console.log(`   실적 컨텍스트 키 목록: ${Object.keys(perfCtx).join(', ') || '(없음)'}`);
+    console.log(`   시장 컨텍스트 키 목록: ${Object.keys(marketCtx).join(', ') || '(없음)'}`);
+    return;
+  }
 
   const targets = TEST_MODE ? INDICATORS.slice(0, 3) : INDICATORS;
   console.log(TEST_MODE ? '🧪 테스트 모드: 앞 3개 지표만 실행\n' : '');
