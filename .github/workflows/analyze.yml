@@ -41,6 +41,7 @@ jobs:
         env:
           ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
           REB_API_KEY: ${{ secrets.REB_API_KEY }}
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: node .github/scripts/fetch_market_stats.js
