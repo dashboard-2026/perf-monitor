@@ -4652,7 +4652,7 @@ const Presentation = makeIcon([["path", {
         rows: 2,
         className: "w-full px-2 py-1.5 border rounded text-sm resize-none"
       })), /*#__PURE__*/React.createElement("div", {
-        className: "mb-3 grid grid-cols-2 gap-2"
+        className: "mb-3 grid grid-cols-3 gap-2"
       }, /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
@@ -4665,11 +4665,20 @@ const Presentation = makeIcon([["path", {
       })), /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
-      }, "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c) \uaddc\ubaa8 (\uc9d1\ud589\ub960\u00b7\uc608\uc0b0\uc99d\uac10\uc728 \ubd84\uc11d\uc6a9)"), /*#__PURE__*/React.createElement("input", {
+      }, "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c) \uaddc\ubaa8"), /*#__PURE__*/React.createElement("input", {
         type: "number",
         value: ind.lastYearTarget ?? '',
         onChange: e => handleField(idx, 'lastYearTarget', e.target.value === '' ? null : parseFloat(e.target.value)),
-        placeholder: "\uc608: 1200 (\uc791\ub144 \uc5f0\uac04\ubaa9\ud45c\uc561)",
+        placeholder: "\uc608: 1200",
+        className: "w-full px-2 py-1.5 border rounded text-sm"
+      })), /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("label", {
+        className: "text-xs font-medium text-slate-600 block mb-1"
+      }, "\uC62C\ud574 \uc608\uc0b0\ucd1d\uc561 (\ubaa9\ud45c\u00b7\uc2e4\uc801\uc774 %\ub85c \uc785\ub825\ub418\ub294 \uc9c0\ud45c\ub9cc \ud544\uc694, \uae08\uc561 \uc9c0\ud45c\ub294 \ube44\uc6cc\ub458)"), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: ind.currentYearBudget ?? '',
+        onChange: e => handleField(idx, 'currentYearBudget', e.target.value === '' ? null : parseFloat(e.target.value)),
+        placeholder: "\uc608: 1500 (\uc9d1\ud589\ub960 %\ub85c \uad00\ub9ac\ub418\ub294 \uc9c0\ud45c\ub9cc)",
         className: "w-full px-2 py-1.5 border rounded text-sm"
       }))), /*#__PURE__*/React.createElement("div", {
         className: "mb-3"
@@ -6217,8 +6226,14 @@ const Presentation = makeIcon([["path", {
         type: "number",
         value: ind.lastYearTarget ?? '',
         onChange: e => handleField(idx, 'lastYearTarget', e.target.value === '' ? null : parseFloat(e.target.value)),
-        placeholder: "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c) \uaddc\ubaa8 (\uc9d1\ud589\ub960\ubd84\uc11d\uc6a9)",
+        placeholder: "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c)",
         className: "w-full px-1 mt-1 border rounded text-xs text-teal-600"
+      }), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: ind.currentYearBudget ?? '',
+        onChange: e => handleField(idx, 'currentYearBudget', e.target.value === '' ? null : parseFloat(e.target.value)),
+        placeholder: "\uC62C\uD574 \uC608\uc0b0\ucd1d\uc561(% \uc9c0\ud45c\uc5d0\ub9cc)",
+        className: "w-full px-1 mt-1 border rounded text-xs text-purple-600"
       })), /*#__PURE__*/React.createElement("td", {
         className: "px-2 py-1"
       }, /*#__PURE__*/React.createElement("input", {
