@@ -652,8 +652,16 @@ const Presentation = makeIcon([["path", {
   };
 
 
-  const MARKET_STAT_IDS = ['cd_rate','jeonse_index','jeonse_loan','sale_index','base_rate','treasury_3y','mortgage_rate'];
+  const MARKET_STAT_IDS = ['cd_rate','jeonse_index','jeonse_loan','sale_index','base_rate','treasury_3y','mortgage_rate','housing_permit','unsold_housing'];
   const MARKET_FIRST_ROW = 4; // 첫 줄에 항상 보이는 카드 수
+  // 출처 약칭 표기
+  const MARKET_SOURCE_LABEL = { ecos:'한은', reb:'부동산원', kosis:'KOSIS' };
+  // 시장지표 분류 (소제목 + 카드 묶음)
+  const MARKET_GROUPS = [
+    { title:'금리 동향', ids:['base_rate','cd_rate','treasury_3y','mortgage_rate','jeonse_loan'] },
+    { title:'주택가격 동향', ids:['sale_index','jeonse_index'] },
+    { title:'주택공급 동향', ids:['housing_permit','unsold_housing'] },
+  ];
 
   // 미니 선형 그래프 (SVG sparkline)
   function Sparkline({ series, color }) {
@@ -705,7 +713,6 @@ const Presentation = makeIcon([["path", {
   function MarketStatsPanel() {
     const [stats, setStats] = React.useState({});
     const [loading, setLoading] = React.useState(true);
-    const [expanded, setExpanded] = React.useState(false);
 
     React.useEffect(() => {
       (async () => {
@@ -733,31 +740,55 @@ const Presentation = makeIcon([["path", {
     };
     const changeColor = v => v === null || v === undefined ? 'text-slate-400' : v > 0 ? 'text-rose-600' : v < 0 ? 'text-blue-600' : 'text-slate-500';
 
-    const firstRow = available.slice(0, MARKET_FIRST_ROW);
-    const restRow = available.slice(MARKET_FIRST_ROW);
-
     const renderCard = (id, dimmed) => {
       const s = stats[id];
       const isEcos = s.source === 'ecos';
+      const isKosis = s.source === 'kosis';
       // 추세 색상: 최근 상승=rose, 하락=blue
       const trendColor = s.series && s.series.length >= 2
         ? (s.series[s.series.length-1].v >= s.series[0].v ? '#f43f5e' : '#3b82f6')
         : '#94a3b8';
+      const srcLabel = MARKET_SOURCE_LABEL[s.source] || '';
+      // KOSIS 값 표시: 호 단위 큰 숫자는 천단위 콤마
+      const fmtKosisVal = v => {
+        if (v == null) return '-';
+        return v.toLocaleString('ko-KR');
+      };
+      // 값 본문
+      let valueEl;
+      if (isKosis) {
+        valueEl = React.createElement('p',{className:'text-2xl font-extrabold text-slate-800 tracking-tight'},
+          fmtKosisVal(s.value), React.createElement('span',{className:'text-sm font-medium text-slate-400 ml-1'}, s.unit || '')
+        );
+      } else {
+        valueEl = React.createElement('p',{className:'text-2xl font-extrabold text-slate-800 tracking-tight'},
+          (isEcos ? s.value : Math.round(s.value * 1000) / 1000) + (isEcos ? '%' : '')
+        );
+      }
+      // 등락 표시
+      let changeEl;
+      if (isEcos) {
+        changeEl = React.createElement('p',{className:'text-xs '+changeColor(s.change)},
+          s.change !== null ? `${s.prevLabel} ${fmtChange(s.change)}%p` : '비교 데이터 없음'
+        );
+      } else if (isKosis && s.kind === 'cumulative') {
+        // 누계: 전년동기比 강조
+        changeEl = React.createElement('div',{className:'flex gap-2 text-xs'},
+          React.createElement('span',{className:changeColor(s.yoyPct)}, s.yoyPct!==null ? `전년동기比 ${fmtChange(s.yoyPct)}%` : '-')
+        );
+      } else {
+        // 시점값(미분양) 또는 부동산원 지수: 전월·전년比
+        changeEl = React.createElement('div',{className:'flex gap-2 text-xs'},
+          React.createElement('span',{className:changeColor(s.momPct)}, s.momPct!==null ? `전월비 ${fmtChange(s.momPct)}%` : '-'),
+          React.createElement('span',{className:changeColor(s.yoyPct)}, s.yoyPct!==null ? `전년비 ${fmtChange(s.yoyPct)}%` : '-')
+        );
+      }
       return React.createElement('div',{key:id,className:'bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-2'+(dimmed?' opacity-60':'')},
         React.createElement('div',{className:'min-w-0 flex-1'},
           React.createElement('p',{className:'text-xs text-slate-500 mb-1 truncate'}, s.name),
-          React.createElement('p',{className:'text-2xl font-extrabold text-slate-800 tracking-tight'},
-            (isEcos ? s.value : Math.round(s.value * 1000) / 1000) + (isEcos ? '%' : '')
-          ),
-          isEcos
-            ? React.createElement('p',{className:'text-xs '+changeColor(s.change)},
-                s.change !== null ? `${s.prevLabel} ${fmtChange(s.change)}%p` : '비교 데이터 없음'
-              )
-            : React.createElement('div',{className:'flex gap-2 text-xs'},
-                React.createElement('span',{className:changeColor(s.momPct)}, s.momPct!==null ? `전월비 ${fmtChange(s.momPct)}%` : '-'),
-                React.createElement('span',{className:changeColor(s.yoyPct)}, s.yoyPct!==null ? `전년비 ${fmtChange(s.yoyPct)}%` : '-')
-              ),
-          React.createElement('p',{className:'text-[10px] text-slate-300 mt-1'}, s.asOf)
+          valueEl,
+          changeEl,
+          React.createElement('p',{className:'text-[10px] text-slate-300 mt-1'}, (isKosis && s.asOf && s.asOf.length===6 ? s.asOf.slice(0,4)+'.'+s.asOf.slice(4,6) : s.asOf), srcLabel && React.createElement('span',{className:'ml-1.5 text-slate-400'}, '· '+srcLabel))
         ),
         s.series && s.series.length >= 2 && React.createElement('div',{className:'flex flex-col items-center flex-shrink-0'},
           React.createElement(Sparkline, { series:s.series, color:trendColor }),
@@ -768,25 +799,17 @@ const Presentation = makeIcon([["path", {
 
     return React.createElement('div',{className:'bg-slate-50/70 border border-slate-100 rounded-xl p-4'},
       React.createElement('h3',{className:'text-sm font-bold text-slate-700 mb-3 px-1'},'📊 주요 시장 지표'),
-      // 반응형: 모바일 1개 / sm 2개 / lg 4개
-      React.createElement('div',{className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2'},
-        firstRow.map(id => renderCard(id, false))
-      ),
-      // 나머지: 펼치기
-      restRow.length > 0 && React.createElement('div',{className:'mt-2'},
-        !expanded && React.createElement('button',{
-          onClick:()=>setExpanded(true),
-          className:'w-full text-xs text-slate-400 hover:text-slate-600 py-1.5 border border-dashed border-slate-200 rounded-lg'
-        }, `＋ 시장 지표 ${restRow.length}개 더 보기`),
-        expanded && React.createElement(React.Fragment, null,
-          React.createElement('div',{className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2'},
-            restRow.map(id => renderCard(id, false))
-          ),
-          React.createElement('button',{
-            onClick:()=>setExpanded(false),
-            className:'w-full text-xs text-slate-400 hover:text-slate-600 py-1.5 mt-2'
-          }, '− 접기')
-        )
+      React.createElement('div',{className:'space-y-4'},
+        MARKET_GROUPS.map(group => {
+          const groupIds = group.ids.filter(id => stats[id]);
+          if (groupIds.length === 0) return null;
+          return React.createElement('div',{key:group.title},
+            React.createElement('p',{className:'text-xs font-semibold text-slate-500 mb-2 px-1'}, group.title),
+            React.createElement('div',{className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2'},
+              groupIds.map(id => renderCard(id, false))
+            )
+          );
+        })
       )
     );
   }
@@ -4712,7 +4735,7 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("button", {
         onClick: () => setExpandedIdx(expandedIdx === idx ? null : idx),
         className: `text-xs px-2 py-1 rounded border ${ovCount > 0 ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`
-      }, expandedIdx === idx ? '닫기' : ovCount > 0 ? `월별 ●${ovCount}` : '월별'))), expandedIdx === idx && /*#__PURE__*/React.createElement("tr", {
+      }, expandedIdx === idx ? '닫기' : '상세'))), expandedIdx === idx && /*#__PURE__*/React.createElement("tr", {
         className: "bg-slate-50/70 border-b"
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 13,
@@ -4728,7 +4751,7 @@ const Presentation = makeIcon([["path", {
         rows: 2,
         className: "w-full px-2 py-1.5 border rounded text-sm resize-none"
       })), /*#__PURE__*/React.createElement("div", {
-        className: "mb-3 grid grid-cols-3 gap-2"
+        className: (ind.code === 'P-09' || ind.code === '8-1') ? "mb-3 grid grid-cols-3 gap-2" : "mb-3"
       }, /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
@@ -4738,7 +4761,7 @@ const Presentation = makeIcon([["path", {
         onChange: e => handleField(idx, 'lastYearActual', e.target.value === '' ? null : parseFloat(e.target.value)),
         placeholder: "\uc608: 1128",
         className: "w-full px-2 py-1.5 border rounded text-sm"
-      })), /*#__PURE__*/React.createElement("div", null,
+      })), (ind.code === 'P-09' || ind.code === '8-1') && /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
       }, "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c) \uaddc\ubaa8"), /*#__PURE__*/React.createElement("input", {
@@ -4747,7 +4770,7 @@ const Presentation = makeIcon([["path", {
         onChange: e => handleField(idx, 'lastYearTarget', e.target.value === '' ? null : parseFloat(e.target.value)),
         placeholder: "\uc608: 1200",
         className: "w-full px-2 py-1.5 border rounded text-sm"
-      })), /*#__PURE__*/React.createElement("div", null,
+      })), (ind.code === 'P-09' || ind.code === '8-1') && /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("label", {
         className: "text-xs font-medium text-slate-600 block mb-1"
       }, "\uC62C\ud574 \uc608\uc0b0\ucd1d\uc561 (\ubaa9\ud45c\u00b7\uc2e4\uc801\uc774 %\ub85c \uc785\ub825\ub418\ub294 \uc9c0\ud45c\ub9cc \ud544\uc694, \uae08\uc561 \uc9c0\ud45c\ub294 \ube44\uc6cc\ub458)"), /*#__PURE__*/React.createElement("input", {
@@ -6298,13 +6321,13 @@ const Presentation = makeIcon([["path", {
         onChange: e => handleField(idx, 'lastYearActual', e.target.value === '' ? null : parseFloat(e.target.value)),
         placeholder: "\uC791\uB144 \uC2E4\uC801 (AI \uBd84\uc11d\uc6a9)",
         className: "w-full px-1 mt-1 border rounded text-xs text-emerald-600"
-      }), /*#__PURE__*/React.createElement("input", {
+      }), (ind.code === 'P-09' || ind.code === '8-1') && /*#__PURE__*/React.createElement("input", {
         type: "number",
         value: ind.lastYearTarget ?? '',
         onChange: e => handleField(idx, 'lastYearTarget', e.target.value === '' ? null : parseFloat(e.target.value)),
         placeholder: "\uC791\uB144 \uc608\uc0b0(\ubaa9\ud45c)",
         className: "w-full px-1 mt-1 border rounded text-xs text-teal-600"
-      }), /*#__PURE__*/React.createElement("input", {
+      }), (ind.code === 'P-09' || ind.code === '8-1') && /*#__PURE__*/React.createElement("input", {
         type: "number",
         value: ind.currentYearBudget ?? '',
         onChange: e => handleField(idx, 'currentYearBudget', e.target.value === '' ? null : parseFloat(e.target.value)),
@@ -6396,7 +6419,7 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("button", {
         onClick: () => setExpandedIdx(expandedIdx === idx ? null : idx),
         className: `text-xs px-2 py-1 rounded border ${ovCount > 0 ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`
-      }, expandedIdx === idx ? '\uB2EB\uAE30' : ovCount > 0 ? `\uC6D4\uBCC4 \u25CF${ovCount}` : '\uC6D4\uBCC4'))), expandedIdx === idx && /*#__PURE__*/React.createElement("tr", {
+      }, expandedIdx === idx ? '\uB2EB\uAE30' : '\uC0C1\uC138'))), expandedIdx === idx && /*#__PURE__*/React.createElement("tr", {
         className: "bg-slate-50/70 border-b"
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: 14,
