@@ -226,7 +226,7 @@ async function loadPerfContext(){
 
 // 시장지표 로딩 (금리·가격지수 최신값 + 추세)
 async function loadMarketContext(){
-  const ids = ['base_rate','cd_rate','treasury_3y','mortgage_rate','jeonse_loan','sale_index','jeonse_index'];
+  const ids = ['base_rate','cd_rate','treasury_3y','mortgage_rate','jeonse_loan','sale_index','jeonse_index','housing_permit','unsold_housing'];
   const out = {};
   for (const id of ids) {
     const p = await sbGet('market_stats', `market:${id}`);
@@ -270,19 +270,20 @@ async function callGeminiOnce(prompt){
 
 // 지표별 관련 시장지표 매칭 (해당 지표 분석에 근거로 넣을 것들)
 const MARKET_RELEVANCE = {
-  'P-01': ['treasury_3y','cd_rate'], 'P-02': ['jeonse_loan','mortgage_rate'],
+  'P-01': ['treasury_3y','cd_rate','housing_permit'], 'P-02': ['jeonse_loan','mortgage_rate'],
   'P-03': ['jeonse_index','jeonse_loan'], 'P-04': ['jeonse_index'],
   'P-05-2': [], 'P-09': ['treasury_3y'],
-  '1-1': ['jeonse_index','jeonse_loan'], '1-2': ['sale_index','treasury_3y'],
-  '2-1': ['sale_index','mortgage_rate'], '2-2': ['jeonse_index'],
+  '1-1': ['jeonse_index','jeonse_loan'], '1-2': ['sale_index','treasury_3y','housing_permit'],
+  '2-1': ['sale_index','mortgage_rate','unsold_housing'], '2-2': ['jeonse_index'],
   '3-3': ['jeonse_index'], '4-1': ['treasury_3y'], '4-2': [],
-  '5': ['jeonse_index','sale_index'], '6': ['mortgage_rate'],
+  '5': ['jeonse_index','sale_index','unsold_housing'], '6': ['mortgage_rate'],
   '7': ['mortgage_rate','jeonse_loan','base_rate'], '8-1': ['treasury_3y'],
 };
 const MARKET_NAMES = {
   base_rate:'기준금리', cd_rate:'CD금리(91일)', treasury_3y:'국고채(3년)',
   mortgage_rate:'주택담보대출금리', jeonse_loan:'전세자금대출금리',
   sale_index:'매매가격지수', jeonse_index:'전세가격지수',
+  housing_permit:'주택건설 인허가실적(누계)', unsold_housing:'미분양현황',
 };
 
 function buildMarketText(code, marketCtx){
@@ -291,6 +292,18 @@ function buildMarketText(code, marketCtx){
   for (const id of ids) {
     const m = marketCtx[id];
     if (!m) continue;
+    if (m.source === 'kosis') {
+      // KOSIS: 누계는 전년동기比, 시점값은 전월/전년比
+      const val = (m.value != null ? m.value.toLocaleString('ko-KR') : '-') + (m.unit || '');
+      let line = `- ${MARKET_NAMES[id]}: 최신 ${val} (${m.asOf})`;
+      if (m.kind === 'cumulative' && m.yoyPct !== null && m.yoyPct !== undefined) {
+        line += `, 전년동기比 ${m.yoyPct>0?'+':''}${m.yoyPct}%`;
+      } else if (m.momPct !== null && m.momPct !== undefined) {
+        line += `, 전월比 ${m.momPct>0?'+':''}${m.momPct}%, 전년比 ${m.yoyPct>0?'+':''}${m.yoyPct}%`;
+      }
+      lines.push(line);
+      continue;
+    }
     let line = `- ${MARKET_NAMES[id]}: 최신 ${m.value}${m.source==='ecos'?'%':''} (${m.asOf})`;
     if (m.source === 'ecos' && m.change !== null && m.change !== undefined) line += `, ${m.prevLabel} ${m.change>0?'+':''}${m.change}%p`;
     if (m.source === 'reb' && m.momPct !== null && m.momPct !== undefined) line += `, 전월비 ${m.momPct>0?'+':''}${m.momPct}%, 전년비 ${m.yoyPct>0?'+':''}${m.yoyPct}%`;
