@@ -171,8 +171,10 @@ async function sbGet(table, id){
     });
     if(!res.ok) return null;
     const rows = await res.json();
-    if(!rows[0]?.payload) return null;
-    return JSON.parse(rows[0].payload);
+    const p = rows[0]?.payload;
+    if(p === null || p === undefined) return null;
+    // payload가 이미 객체/배열이면 그대로, 문자열이면 파싱
+    return typeof p === 'string' ? JSON.parse(p) : p;
   } catch(e){ return null; }
 }
 
