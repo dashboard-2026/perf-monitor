@@ -163,7 +163,95 @@ async function fetchPreviousAnalysis(ws, code){
   } catch(e){ return null; }
 }
 
+// Supabase 범용 조회 (perf_meta / perf_data)
+async function sbGet(table, id){
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=payload`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if(!res.ok) return null;
+    const rows = await res.json();
+    if(!rows[0]?.payload) return null;
+    return JSON.parse(rows[0].payload);
+  } catch(e){ return null; }
+}
+
+// 지표별 실적 컨텍스트 로딩 (달성률·작년실적%). 실적 수치는 로그에 절대 남기지 않음.
+// 반환: { 'ceo:P-01': { achRate, lastYearRate, lastYearOwnRate, budgetGrowthPct }, ... }
+async function loadPerfContext(){
+  const ctx = {};
+  const year = new Date().getFullYear();
+  for (const ws of ['ceo','inst']) {
+    const indicators = await sbGet('perf_meta', `${ws}:meta:indicators`);
+    const data = await sbGet('perf_data', `${ws}:data:${year}`);
+    if (!indicators) continue;
+    for (const ind of indicators) {
+      const entry = {};
+      try {
+        const annualTarget = ind.annualTarget ?? ind.target ?? null;
+        const rec = data?.[ind.code];
+        // 실적은 actual[월] 객체 → 가장 최근 입력된 월의 누적 실적 사용
+        let actual = null;
+        if (rec?.actual && typeof rec.actual === 'object') {
+          for (let m = 12; m >= 1; m--) {
+            const v = rec.actual[m];
+            if (v !== null && v !== undefined && v !== '') { actual = parseFloat(v); break; }
+          }
+        }
+        if (actual !== null && annualTarget) {
+          entry.achRate = Math.round((actual / annualTarget) * 1000) / 10; // 소수1자리 %
+        }
+        const hasLastYearActual = ind.lastYearActual !== null && ind.lastYearActual !== undefined;
+        const hasLastYearTarget = ind.lastYearTarget !== null && ind.lastYearTarget !== undefined;
+        if (hasLastYearActual && hasLastYearTarget) {
+          // 작년 예산 규모까지 있으면: 작년 실제 집행률 + 올해 예산 증가율을 정확히 계산
+          entry.lastYearOwnRate = Math.round((ind.lastYearActual / ind.lastYearTarget) * 1000) / 10;
+          if (annualTarget) {
+            entry.budgetGrowthPct = Math.round(((annualTarget - ind.lastYearTarget) / ind.lastYearTarget) * 1000) / 10;
+          }
+        } else if (hasLastYearActual && annualTarget) {
+          // 작년 예산 정보 없으면: 올해 목표 대비로만 근사 (규모 변화는 반영 못함)
+          entry.lastYearRate = Math.round((ind.lastYearActual / annualTarget) * 1000) / 10;
+        }
+      } catch(e){}
+      if (entry.achRate !== undefined || entry.lastYearRate !== undefined || entry.lastYearOwnRate !== undefined) {
+        ctx[`${ws}:${ind.code}`] = entry;
+      }
+    }
+  }
+  return ctx;
+}
+
+// 시장지표 로딩 (금리·가격지수 최신값 + 추세)
+async function loadMarketContext(){
+  const ids = ['base_rate','cd_rate','treasury_3y','mortgage_rate','jeonse_loan','sale_index','jeonse_index'];
+  const out = {};
+  for (const id of ids) {
+    const p = await sbGet('market_stats', `market:${id}`);
+    if (p) out[id] = p;
+  }
+  return out;
+}
+
 // Gemini 호출 1회 시도 (내부용, 재시도는 analyzeWithGemini에서 처리)
+// [1단계] 검색 그라운딩을 켜고 자유 서술형 조사 결과를 받음 (JSON 아님)
+async function callGeminiSearch(prompt){
+  geminiCallCount++;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      contents:[{parts:[{text:prompt}]}],
+      tools:[{ google_search:{} }],
+      generationConfig:{temperature:0.3, maxOutputTokens:2000}
+    })
+  });
+  if(!res.ok) throw new Error('Gemini(검색): '+await res.text());
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.map(p=>p.text).filter(Boolean).join('\n') || '';
+  return text.trim();
+}
+
+// [2단계] 그라운딩 없이 JSON만 정리 (기존 방식)
 async function callGeminiOnce(prompt){
   geminiCallCount++;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,{
@@ -178,57 +266,129 @@ async function callGeminiOnce(prompt){
   return JSON.parse(m[0]);
 }
 
-async function analyzeWithGemini(name, desc, newsItems, previous){
+// 지표별 관련 시장지표 매칭 (해당 지표 분석에 근거로 넣을 것들)
+const MARKET_RELEVANCE = {
+  'P-01': ['treasury_3y','cd_rate'], 'P-02': ['jeonse_loan','mortgage_rate'],
+  'P-03': ['jeonse_index','jeonse_loan'], 'P-04': ['jeonse_index'],
+  'P-05-2': [], 'P-09': ['treasury_3y'],
+  '1-1': ['jeonse_index','jeonse_loan'], '1-2': ['sale_index','treasury_3y'],
+  '2-1': ['sale_index','mortgage_rate'], '2-2': ['jeonse_index'],
+  '3-3': ['jeonse_index'], '4-1': ['treasury_3y'], '4-2': [],
+  '5': ['jeonse_index','sale_index'], '6': ['mortgage_rate'],
+  '7': ['mortgage_rate','jeonse_loan','base_rate'], '8-1': ['treasury_3y'],
+};
+const MARKET_NAMES = {
+  base_rate:'기준금리', cd_rate:'CD금리(91일)', treasury_3y:'국고채(3년)',
+  mortgage_rate:'주택담보대출금리', jeonse_loan:'전세자금대출금리',
+  sale_index:'매매가격지수', jeonse_index:'전세가격지수',
+};
+
+function buildMarketText(code, marketCtx){
+  const ids = MARKET_RELEVANCE[code] || [];
+  const lines = [];
+  for (const id of ids) {
+    const m = marketCtx[id];
+    if (!m) continue;
+    let line = `- ${MARKET_NAMES[id]}: 최신 ${m.value}${m.source==='ecos'?'%':''} (${m.asOf})`;
+    if (m.source === 'ecos' && m.change !== null && m.change !== undefined) line += `, ${m.prevLabel} ${m.change>0?'+':''}${m.change}%p`;
+    if (m.source === 'reb' && m.momPct !== null && m.momPct !== undefined) line += `, 전월비 ${m.momPct>0?'+':''}${m.momPct}%, 전년비 ${m.yoyPct>0?'+':''}${m.yoyPct}%`;
+    lines.push(line);
+  }
+  return lines.length ? lines.join('\n') : '(직접 연관된 시장지표 없음)';
+}
+
+function buildPerfText(perf){
+  if (!perf) return '(실적 데이터 없음)';
+  const parts = [];
+  if (perf.achRate !== undefined) parts.push(`올해 현재 달성률 약 ${perf.achRate}% (연간목표 대비 누적)`);
+  if (perf.lastYearOwnRate !== undefined) {
+    parts.push(`작년 실제 집행률(자체 예산 대비) 약 ${perf.lastYearOwnRate}%`);
+    if (perf.budgetGrowthPct !== undefined) {
+      const dir = perf.budgetGrowthPct > 0 ? '증가' : perf.budgetGrowthPct < 0 ? '감소' : '동일';
+      parts.push(`올해 예산 규모는 작년 대비 약 ${Math.abs(perf.budgetGrowthPct)}% ${dir}`);
+    }
+  } else if (perf.lastYearRate !== undefined) {
+    parts.push(`작년 실적은 올해 목표의 약 ${perf.lastYearRate}% 수준 (작년 예산 규모 정보 없어 참고용)`);
+  }
+  return parts.length ? parts.join(' / ') : '(실적 데이터 없음)';
+}
+
+async function analyzeWithGemini(name, desc, newsItems, previous, code, marketCtx, perfCtx){
   const newsText = newsItems.length
     ? newsItems.map((n,i)=>`[${i+1}] ${n.title}\n${n.snippet}`).join('\n\n')
-    : '최근 2주간 관련 뉴스를 찾지 못했습니다.';
+    : '최근 1개월간 네이버에서 관련 뉴스를 찾지 못함.';
 
   const prevText = previous?.analysis
-    ? `\n## 지난주 분석 결과\n요약: ${previous.analysis.summary}\n전망: ${previous.analysis.outlook || '(없음)'}\n분석일: ${previous.analyzedAt || '(알 수 없음)'}\n`
+    ? `\n## 지난주 분석 결과\n요약: ${previous.analysis.summary}\n전망: ${previous.analysis.outlook || '(없음)'}\n`
     : '\n## 지난주 분석 결과\n(이전 분석 없음 — 이번이 첫 분석)\n';
 
-  const prompt = `당신은 공공기관 성과관리를 지원하는 애널리스트입니다. 아래 지표의 외부환경을 분석해, 성과담당자가 보고서에 바로 인용할 수 있는 사실 중심의 문장을 작성하세요.
+  const marketText = buildMarketText(code, marketCtx);
+  const perfText = buildPerfText(perfCtx);
+
+  // [1단계] 검색 그라운딩으로 심층 조사 (자유 서술)
+  const searchPrompt = `당신은 공공기관 성과관리 애널리스트입니다. 아래 지표와 관련된 최근 1~2개월간의 정책·시장 동향을 Google 검색으로 조사해, 핵심 사실을 6~8줄로 정리하세요.
 
 ## 분석 대상 지표
 - 지표명: "${name}"
 - 지표 설명: ${desc || '(설명 없음)'}
 
-## 최근 뉴스
+## 참고: 이미 수집된 네이버 뉴스 (추가 조사 시 중복 피하기)
 ${newsText}
+
+## 조사 지침
+- 정부 정책 발표, 제도 변경, 관련 통계 수치(전월/전년 대비 변동)를 우선 조사하세요.
+- 이 지표의 실적에 영향을 줄 수 있는 요인을 인과관계 중심으로 파악하세요.
+- 확인되지 않은 추측은 배제하고, 검색으로 확인된 사실만 정리하세요.
+- 각 줄은 간결한 사실 문장으로 작성하세요 (출처 URL은 생략).`;
+
+  let searchFindings = '';
+  try {
+    searchFindings = await callGeminiSearch(searchPrompt);
+  } catch(e) {
+    console.log(`   (검색 그라운딩 실패, 뉴스만으로 진행: ${e.message.slice(0,60)})`);
+  }
+  const findingsText = searchFindings
+    ? `\n## Gemini 심층 조사 결과 (Google 검색 기반)\n${searchFindings}\n`
+    : '';
+
+  // [2단계] 종합하여 JSON 정리 (그라운딩 없이)
+  const prompt = `당신은 공공기관 성과관리를 지원하는 애널리스트입니다. 아래 정보를 종합해, 성과담당자가 보고서에 바로 인용할 수 있는 사실 중심의 분석을 작성하세요.
+
+## 분석 대상 지표
+- 지표명: "${name}"
+- 지표 설명: ${desc || '(설명 없음)'}
+
+## 최근 뉴스 (네이버)
+${newsText}
+${findingsText}
+## 실제 시장지표 (한국은행·부동산원 확정 수치)
+${marketText}
+
+## 우리 기관 실적 현황 (전망 판단 근거)
+${perfText}
 ${prevText}
 ## 분석 지침
-1. [무관 뉴스 제외] 위 뉴스 중 이 지표와 직접 관련 없는 기사(예: 스포츠·연예·정치 일반 등)는 무시하고, 관련 있는 내용만 근거로 삼으세요.
-2. [방향성 판단] 지표 설명의 "높을수록/낮을수록 좋음"을 기준으로 impact를 판정하세요. 예: 보증사고율은 낮을수록 좋은 지표이므로, "사고 증가" 뉴스는 negative입니다. 지표 실적에 유리하면 positive, 불리하면 negative, 중립이면 neutral.
-3. [수치 우선] 뉴스에 지수·수치가 있으면 전월 대비·전년동월 대비 변동(상승/하락/보합)을 반드시 확인해 summary와 description에 구체적으로 반영하세요. 비교 수치가 없으면 억지로 만들지 말고 방향성만 서술하세요(수치를 지어내지 마세요).
-4. [변화 추이] 지난주 분석이 있으면 이번 주와 비교해 달라진 점을 trend에 반영하세요. 없으면 direction을 "new"로 하세요.
-5. [문체 — 반드시 준수] 공공기관 보고서 문체(개조식 "~함", "~임", "~됨" 체)로만 작성하세요. "~습니다", "~한다", "~해요" 같은 다른 어미는 절대 쓰지 마세요. "지속적인 모니터링이 필요하다", "귀추가 주목된다", "예의주시할 필요가 있다" 같은 상투적·공허한 표현도 금지합니다. 구체적 사실·수치·인과관계 중심으로 간결하게 쓰세요.
-   예시 어미: "상승함", "확대됨", "전망임", "판단됨", "필요함" (O) / "상승했다", "확대되었습니다", "필요해요" (X)
-6. [분량 엄수 — 중요] summary는 반드시 2문장, 총 120자 이내로 쓰세요. factors의 description은 각 40자 이내, outlook은 1문장 50자 이내, trend.description은 1문장 40자 이내로 쓰세요. 분량을 넘기면 출력이 잘려 시스템 오류가 발생하니 반드시 지키세요.
-
-## 좋은 출력 예시 (분량·문체 기준 그대로 참고)
-{
-  "summary": "5월 건설공사비지수 137.67로 전월비 0.40%, 전년비 5.07% 상승함. 자재비 부담이 PF 보증 수요를 압박하는 것으로 판단됨.",
-  "factors": [
-    { "name": "공사비 상승", "impact": "negative", "description": "지수 전년비 5.07% 상승, 사업 원가 부담 확대됨" },
-    { "name": "PF 시장 위축", "impact": "negative", "description": "고금리로 PF 심사 강화, 신규 수요 둔화됨" }
-  ],
-  "outlook": "공사비 상승세 지속 시 보증 실적 회복은 제한적일 전망임.",
-  "trend": { "direction": "worsening", "description": "전주 대비 공사비지수 추가 상승, 부담 확대됨." }
-}
+1. [무관 정보 제외] 이 지표와 직접 관련 없는 내용은 무시하고, 관련 있는 것만 근거로 삼으세요.
+2. [방향성 판단] 지표 설명의 "높을수록/낮을수록 좋음"을 기준으로 impact를 판정하세요. 지표 실적에 유리하면 positive, 불리하면 negative, 중립이면 neutral.
+3. [수치 우선] 위 시장지표의 실제 수치와 뉴스의 수치를 우선 활용하세요. 수치를 지어내지 마세요.
+4. [실적 연계 전망 — 중요] 'outlook'에는 위 '실적 현황'과 외부여건을 연계해 전망하세요. 예: 작년 실제 집행률이 95%였는데 올해 예산이 30% 증가했다면, 절대 집행 부담이 커진 점을 고려해 전망하세요("예산 규모 확대로 집행 부담 증가하나, 작년 집행률 고려 시 무난할 전망" 등). 예산 증가율 정보가 없으면 단순히 목표 대비 작년 수준과 현재 여건만 비교하세요. 달성률 수치를 outlook에 직접 언급해도 됩니다.
+5. [변화 추이] 지난주 분석이 있으면 달라진 점을 trend에 반영, 없으면 direction을 "new"로.
+6. [문체 — 반드시 준수] 공공기관 보고서 문체(개조식 "~함", "~임", "~됨" 체)로만 작성. "~습니다/~한다/~해요" 금지. "지속적인 모니터링 필요", "귀추가 주목됨" 같은 공허한 표현 금지.
+7. [분량 엄수] summary는 2문장·120자 이내, factors description 각 40자 이내, outlook 1~2문장·70자 이내, trend.description 40자 이내.
 
 ## 출력 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트·마크다운·설명은 절대 포함하지 마세요. 문자열 안에 큰따옴표(")를 쓸 일이 있으면 반드시 \\" 로 이스케이프하세요.
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트·마크다운은 절대 포함하지 마세요. 문자열 안 큰따옴표는 \\" 로 이스케이프하세요.
 {
-  "summary": "2문장, 120자 이내, 보고서체(~함/~임). 현재 외부환경 핵심을 수치와 함께 요약",
+  "summary": "2문장, 120자 이내, 보고서체(~함/~임). 외부환경 핵심을 수치와 함께 요약",
   "factors": [
-    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "40자 이내 한 문장, 보고서체. 가능하면 전월/전년동월 대비 수치 포함" }
+    { "name": "요인명(10자 이내)", "impact": "positive|negative|neutral", "description": "40자 이내, 보고서체" }
   ],
-  "outlook": "향후 1~2개월 전망, 50자 이내 한 문장, 보고서체",
-  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점, 40자 이내 한 문장, 보고서체 (지난주 분석 없으면 '이번이 첫 분석임')" }
+  "outlook": "실적 현황과 외부여건을 연계한 전망, 70자 이내, 보고서체",
+  "trend": { "direction": "improving|worsening|stable|new", "description": "지난주 대비 달라진 점, 40자 이내, 보고서체" }
 }
 factors는 2~4개로 작성하세요.`;
 
-  // 최대 2회 시도 (1회 실패 시 1회 재시도)
+  // 최대 2회 시도
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -236,7 +396,7 @@ factors는 2~4개로 작성하세요.`;
     } catch(e) {
       lastErr = e;
       if (attempt < 2) {
-        console.log(`   (Gemini 1차 실패, 재시도 중... ${e.message.slice(0,80)})`);
+        console.log(`   (Gemini JSON 정리 1차 실패, 재시도... ${e.message.slice(0,80)})`);
         await sleep(1000);
       }
     }
@@ -256,7 +416,13 @@ async function saveToSupabase(ws, code, analysis, news){
 
 (async ()=>{
   console.log(`\n🔍 외부환경 분석 시작 — ${new Date().toLocaleString('ko-KR')}`);
-  console.log(`대상: ${INDICATORS.length}개 지표 (지표별 키워드 전체를 date+sim 병합 검색)\n`);
+  console.log(`대상: ${INDICATORS.length}개 지표 (네이버 뉴스 + Gemini 검색 + 시장·실적 근거 종합)\n`);
+
+  // 시장지표·실적 컨텍스트 로딩 (실적 수치는 로그에 출력하지 않음)
+  const marketCtx = await loadMarketContext();
+  const perfCtx = await loadPerfContext();
+  console.log(`시장지표 ${Object.keys(marketCtx).length}종, 실적 컨텍스트 ${Object.keys(perfCtx).length}개 지표 로딩 완료\n`);
+
   const targets = TEST_MODE ? INDICATORS.slice(0, 3) : INDICATORS;
   console.log(TEST_MODE ? '🧪 테스트 모드: 앞 3개 지표만 실행\n' : '');
   let ok=0, fail=0;
@@ -266,7 +432,7 @@ async function saveToSupabase(ws, code, analysis, news){
       const news = await searchNewsMulti(ind.keywords);
       const previous = await fetchPreviousAnalysis(ind.ws, ind.code);
       await sleep(300);
-      const analysis = await analyzeWithGemini(ind.name, ind.desc, news, previous);
+      const analysis = await analyzeWithGemini(ind.name, ind.desc, news, previous, ind.code, marketCtx, perfCtx[`${ind.ws}:${ind.code}`]);
       await sleep(1000);
       await saveToSupabase(ind.ws, ind.code, analysis, news);
       console.log(` ✅ (뉴스 ${news.length}건${previous?', 전주비교 O':', 첫분석'})`);
