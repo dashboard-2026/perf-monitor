@@ -226,7 +226,7 @@ async function loadPerfContext(){
 
 // 시장지표 로딩 (금리·가격지수 최신값 + 추세)
 async function loadMarketContext(){
-  const ids = ['base_rate','cd_rate','treasury_3y','mortgage_rate','jeonse_loan','sale_index','jeonse_index','housing_permit','unsold_housing'];
+  const ids = ['base_rate','cd_rate','mortgage_rate','jeonse_loan','sale_index','jeonse_index','housing_permit','unsold_housing'];
   const out = {};
   for (const id of ids) {
     const p = await sbGet('market_stats', `market:${id}`);
@@ -270,17 +270,17 @@ async function callGeminiOnce(prompt){
 
 // 지표별 관련 시장지표 매칭 (해당 지표 분석에 근거로 넣을 것들)
 const MARKET_RELEVANCE = {
-  'P-01': ['treasury_3y','cd_rate','housing_permit'], 'P-02': ['jeonse_loan','mortgage_rate'],
+  'P-01': ['cd_rate','housing_permit'], 'P-02': ['jeonse_loan','mortgage_rate'],
   'P-03': ['jeonse_index','jeonse_loan'], 'P-04': ['jeonse_index'],
-  'P-05-2': [], 'P-09': ['treasury_3y'],
-  '1-1': ['jeonse_index','jeonse_loan'], '1-2': ['sale_index','treasury_3y','housing_permit'],
+  'P-05-2': [], 'P-09': ['cd_rate'],
+  '1-1': ['jeonse_index','jeonse_loan'], '1-2': ['sale_index','cd_rate','housing_permit'],
   '2-1': ['sale_index','mortgage_rate','unsold_housing'], '2-2': ['jeonse_index'],
-  '3-3': ['jeonse_index'], '4-1': ['treasury_3y'], '4-2': [],
+  '3-3': ['jeonse_index'], '4-1': ['cd_rate'], '4-2': [],
   '5': ['jeonse_index','sale_index','unsold_housing'], '6': ['mortgage_rate'],
-  '7': ['mortgage_rate','jeonse_loan','base_rate'], '8-1': ['treasury_3y'],
+  '7': ['mortgage_rate','jeonse_loan','base_rate'], '8-1': ['cd_rate'],
 };
 const MARKET_NAMES = {
-  base_rate:'기준금리', cd_rate:'CD금리(91일)', treasury_3y:'국고채(3년)',
+  base_rate:'기준금리', cd_rate:'CD금리(91일)',
   mortgage_rate:'주택담보대출금리', jeonse_loan:'전세자금대출금리',
   sale_index:'매매가격지수', jeonse_index:'전세가격지수',
   housing_permit:'주택건설 인허가실적(누계)', unsold_housing:'미분양현황',
