@@ -203,11 +203,13 @@ async function loadPerfContext(){
         }
         const hasLastYearActual = ind.lastYearActual !== null && ind.lastYearActual !== undefined;
         const hasLastYearTarget = ind.lastYearTarget !== null && ind.lastYearTarget !== undefined;
+        // 예산 증가율 계산 기준: 금액 지표는 annualTarget, %지표는 별도 입력한 currentYearBudget 사용
+        const currentBudget = ind.currentYearBudget ?? annualTarget;
         if (hasLastYearActual && hasLastYearTarget) {
           // 작년 예산 규모까지 있으면: 작년 실제 집행률 + 올해 예산 증가율을 정확히 계산
           entry.lastYearOwnRate = Math.round((ind.lastYearActual / ind.lastYearTarget) * 1000) / 10;
-          if (annualTarget) {
-            entry.budgetGrowthPct = Math.round(((annualTarget - ind.lastYearTarget) / ind.lastYearTarget) * 1000) / 10;
+          if (currentBudget) {
+            entry.budgetGrowthPct = Math.round(((currentBudget - ind.lastYearTarget) / ind.lastYearTarget) * 1000) / 10;
           }
         } else if (hasLastYearActual && annualTarget) {
           // 작년 예산 정보 없으면: 올해 목표 대비로만 근사 (규모 변화는 반영 못함)
