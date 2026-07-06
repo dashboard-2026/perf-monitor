@@ -2,7 +2,7 @@ name: 지표별 외부환경 분석 (주간)
 
 on:
   schedule:
-    - cron: '0 23 * * 0'  # 매주 월요일 오전 8시 KST (UTC 일요일 23시)
+    - cron: '13 11 * * 0'  # 매주 일요일 오후 8시 13분 KST (UTC 일요일 11시 13분) — 월요일 아침 이전 미리 실행, 정각 회피로 혼잡 지연 방지
   workflow_dispatch:       # 수동 실행 시 아래 옵션 선택 가능
     inputs:
       run_news:
