@@ -16,7 +16,6 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const ECOS_STATS = [
   { id:'base_rate',    name:'한국은행 기준금리',      statCode:'722Y001', itemCode:'0101000',    period:'D', unit:'%' },
   { id:'cd_rate',       name:'CD금리(91일)',           statCode:'817Y002', itemCode:'010502000',  period:'D', unit:'%' },
-  { id:'treasury_3y',   name:'국고채(3년)',            statCode:'817Y002', itemCode:'010200000',  period:'D', unit:'%' },
   { id:'mortgage_rate', name:'주택담보대출 금리',      statCode:'121Y006', itemCode:'BECBLA0302', period:'M', unit:'%' },
   { id:'jeonse_loan',   name:'전세자금대출 금리',      statCode:'121Y006', itemCode:'BECBLA03041',period:'M', unit:'%' },
 ];
