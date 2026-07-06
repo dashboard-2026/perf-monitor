@@ -13,6 +13,10 @@ on:
         description: '시장 통계(금리·가격지수) 수집 실행'
         type: boolean
         default: true
+      diagnose:
+        description: '진단 모드 (실적·시장 로딩 개수만 확인, Gemini 호출 안 함 → 과금 0)'
+        type: boolean
+        default: false
 
 jobs:
   analyze:
@@ -26,16 +30,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 뉴스 기반 외부환경 분석
-        if: github.event_name != 'workflow_dispatch' || inputs.run_news == true
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: node .github/scripts/analyze_indicators.js
-
       - name: 시장 통계(금리·가격지수) 수집
         if: github.event_name != 'workflow_dispatch' || inputs.run_market == true
         env:
@@ -45,3 +39,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: node .github/scripts/fetch_market_stats.js
+
+      - name: 뉴스 기반 외부환경 분석
+        if: github.event_name != 'workflow_dispatch' || inputs.run_news == true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DIAGNOSE: ${{ inputs.diagnose == true && '1' || '0' }}
+        run: node .github/scripts/analyze_indicators.js
