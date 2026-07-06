@@ -2097,7 +2097,7 @@ const Presentation = makeIcon([["path", {
     }];
     const slides = [{
       type: 'cover'
-    }, ...(scope === 'ceo' || scope === 'both' ? ceoSlides : []), ...(scope === 'inst' || scope === 'both' ? instSlides : [])];
+    }, ...(scope === 'inst' || scope === 'both' ? instSlides : []), ...(scope === 'ceo' || scope === 'both' ? ceoSlides : [])];
     const go = dir => setSlide(s => Math.max(0, Math.min(slides.length - 1, s + dir)));
     useEffect(() => {
       if (!scope) return;
@@ -2844,15 +2844,6 @@ const Presentation = makeIcon([["path", {
     }, "\uACF5\uC720 \uBE44\uBC00\uD0A4: ", qrSecret)))), /*#__PURE__*/React.createElement("div", {
       className: "relative grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-3xl"
     }, [{
-      key: 'ceo',
-      icon: Target,
-      label: '기관장 경영계약',
-      sub: '계량지표 12개',
-      main: '#0E7CC4',
-      soft: 'rgba(28,160,220,0.1)',
-      ring: 'rgba(28,160,220,0.3)',
-      delay: 120
-    }, {
       key: 'inst',
       icon: BarChart3,
       label: '기관 경영평가',
@@ -2860,6 +2851,15 @@ const Presentation = makeIcon([["path", {
       main: '#3DA935',
       soft: 'rgba(139,197,63,0.12)',
       ring: 'rgba(139,197,63,0.35)',
+      delay: 120
+    }, {
+      key: 'ceo',
+      icon: Target,
+      label: '기관장 경영계약',
+      sub: '계량지표 12개',
+      main: '#0E7CC4',
+      soft: 'rgba(28,160,220,0.1)',
+      ring: 'rgba(28,160,220,0.3)',
       delay: 200
     }].map(card => /*#__PURE__*/React.createElement("div", {
       key: card.key,
