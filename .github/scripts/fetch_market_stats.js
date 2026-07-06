@@ -7,6 +7,7 @@
 
 const ECOS_KEY  = process.env.ECOS_API_KEY;
 const REB_KEY    = process.env.REB_API_KEY;
+const KOSIS_KEY  = process.env.KOSIS_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
@@ -24,6 +25,28 @@ const ECOS_STATS = [
 const REB_STATS = [
   { id:'sale_index',   name:'매매가격지수(전국)', statblId:'A_2024_00016', itemCode:'100001', regionCode:'500001' },
   { id:'jeonse_index', name:'전세가격지수(전국)', statblId:'A_2024_00019', itemCode:'100001', regionCode:'500001' },
+];
+
+// 통계청(KOSIS): 통계표마다 "전국" 위치·누계여부가 달라 config로 정의
+// filter: 응답 행 중 전국·총계를 고르는 조건 (KOSIS 필드명:값)
+// type: 'cumulative'(연초누계 → 전년동기比) | 'snapshot'(시점 재고량 → 전월/전년比)
+const KOSIS_STATS = [
+  {
+    id: 'housing_permit',
+    name: '주택건설 인허가실적',
+    orgId: '116', tblId: 'DT_MLTM_1946', itmId: '13103871089T1',
+    prdCnt: 24,                                  // 전년동기 비교 위해 24개월
+    filter: { C3_NM: '전국', C1_NM: '총 계', C2_NM: '총 계' },
+    type: 'cumulative', unit: '호',
+  },
+  {
+    id: 'unsold_housing',
+    name: '미분양현황',
+    orgId: '116', tblId: 'DT_MLTM_2080', itmId: '13103792722T1',
+    prdCnt: 13,
+    filter: { C1_NM: '전국', C2_NM: '총합', C3_NM: '총합' },
+    type: 'snapshot', unit: '호',
+  },
 ];
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
@@ -185,6 +208,64 @@ async function fetchRebStat(stat){
   };
 }
 
+// ── 통계청 KOSIS 조회 ────────────────────────────────────────
+// config.filter로 전국·총계 행만 골라 최신값 + 비교값 + 시계열 계산
+async function fetchKosisStat(stat){
+  const url = `https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList`
+    + `&apiKey=${KOSIS_KEY}&itmId=${stat.itmId}+&objL1=ALL&objL2=ALL&objL3=ALL`
+    + `&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y`
+    + `&prdSe=M&newEstPrdCnt=${stat.prdCnt}&orgId=${stat.orgId}&tblId=${stat.tblId}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`KOSIS HTTP ${res.status}`);
+  const data = await res.json();
+  if (data && data.err) throw new Error(`KOSIS err ${data.err}: ${data.errMsg || ''}`);
+  if (!Array.isArray(data) || data.length === 0) throw new Error('KOSIS: 데이터 없음');
+
+  // 전국·총계 행만 필터링 (config.filter 조건 전부 만족)
+  const nation = data.filter(row =>
+    Object.keys(stat.filter).every(k => (row[k] || '').trim() === stat.filter[k].trim())
+  );
+  if (nation.length === 0) {
+    console.log(`   (참고: ${stat.name} 필터 매칭 0건, 첫 행 샘플: ${JSON.stringify(data[0]).slice(0,300)})`);
+    throw new Error('KOSIS: 전국 필터 매칭 없음');
+  }
+
+  // 기간순 정렬 후 최신값
+  nation.sort((a,b) => (a.PRD_DE||'').localeCompare(b.PRD_DE||''));
+  const latest = nation[nation.length - 1];
+  const latestValue = parseFloat(latest.DT);
+  const latestTime = latest.PRD_DE;  // YYYYMM
+
+  // 특정 기간(YYYYMM offset개월 전)의 값 찾기
+  function valueAt(ym){
+    const row = nation.find(r => r.PRD_DE === ym);
+    return row ? parseFloat(row.DT) : null;
+  }
+  function ymOffset(ym, months){
+    let y = parseInt(ym.slice(0,4)), m = parseInt(ym.slice(4,6));
+    m -= months;
+    while (m <= 0) { m += 12; y -= 1; }
+    return `${y}${String(m).padStart(2,'0')}`;
+  }
+
+  const prevMonth = valueAt(ymOffset(latestTime, 1));
+  const prevYear  = valueAt(ymOffset(latestTime, 12));  // 전년 동월
+
+  // 시계열: 최근 13포인트 (그래프용)
+  const series = nation.slice(-13).map(r => ({ t: r.PRD_DE, v: parseFloat(r.DT) }));
+
+  return {
+    id: stat.id, name: stat.name, unit: stat.unit,
+    kind: stat.type,  // cumulative | snapshot
+    value: latestValue, asOf: latestTime,
+    momChange: prevMonth !== null ? +(latestValue - prevMonth).toFixed(0) : null,
+    momPct:    prevMonth !== null ? +(((latestValue - prevMonth) / prevMonth) * 100).toFixed(1) : null,
+    yoyChange: prevYear !== null ? +(latestValue - prevYear).toFixed(0) : null,
+    yoyPct:    prevYear !== null ? +(((latestValue - prevYear) / prevYear) * 100).toFixed(1) : null,
+    series,
+  };
+}
+
 // ── Supabase 저장 ────────────────────────────────────────────
 async function saveToSupabase(id, payload){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/market_stats`, {
@@ -226,6 +307,20 @@ async function saveToSupabase(id, payload){
       const result = await fetchRebStat(stat);
       await saveToSupabase('market:' + stat.id, { ...result, source:'reb', updatedAt });
       console.log(` ✅ ${result.value} (${result.asOf})`);
+      ok++;
+    } catch(e) {
+      console.log(` ❌ ${e.message.slice(0,200)}`);
+      fail++;
+    }
+    await sleep(500);
+  }
+
+  for (const stat of KOSIS_STATS) {
+    try {
+      process.stdout.write(`[KOSIS] ${stat.name}...`);
+      const result = await fetchKosisStat(stat);
+      await saveToSupabase('market:' + stat.id, { ...result, source:'kosis', updatedAt });
+      console.log(` ✅ ${result.value}${result.unit} (${result.asOf})`);
       ok++;
     } catch(e) {
       console.log(` ❌ ${e.message.slice(0,200)}`);
