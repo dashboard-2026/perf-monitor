@@ -221,8 +221,10 @@ async function fetchKosisStat(stat){
   if (!Array.isArray(data) || data.length === 0) throw new Error('KOSIS: 데이터 없음');
 
   // 전국·총계 행만 필터링 (config.filter 조건 전부 만족)
+  // 공백 정규화(연속 공백→1칸, 앞뒤 제거): KOSIS가 "총  계"처럼 공백을 여러 칸 쓰는 경우 대응
+  const normSpace = s => (s || '').replace(/\s+/g, ' ').trim();
   const nation = data.filter(row =>
-    Object.keys(stat.filter).every(k => (row[k] || '').trim() === stat.filter[k].trim())
+    Object.keys(stat.filter).every(k => normSpace(row[k]) === normSpace(stat.filter[k]))
   );
   if (nation.length === 0) {
     console.log(`   (참고: ${stat.name} 필터 매칭 0건, 첫 행 샘플: ${JSON.stringify(data[0]).slice(0,300)})`);
