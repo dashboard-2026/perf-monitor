@@ -180,6 +180,20 @@ async function sbGet(table, id){
 
 // 지표별 실적 컨텍스트 로딩 (달성률·작년실적%). 실적 수치는 로그에 절대 남기지 않음.
 // 반환: { 'ceo:P-01': { achRate, lastYearRate, lastYearOwnRate, budgetGrowthPct }, ... }
+// 달성률 계산 (앱 calcAchievement와 동일: 상향=실적/목표, 하향=목표/실적)
+function calcAch(actual, target, direction){
+  if (actual === null || actual === undefined || actual === '' || target === null || target === undefined) return null;
+  const a = parseFloat(actual), t = parseFloat(target);
+  if (isNaN(a) || isNaN(t)) return null;
+  if (direction === 'down') {
+    if (t === 0) return a === 0 ? 100 : 0;
+    if (a === 0) return 200;
+    return Math.round((t / a) * 1000) / 10;
+  }
+  if (t === 0) return a === 0 ? 100 : null;
+  return Math.round((a / t) * 1000) / 10;
+}
+
 async function loadPerfContext(){
   const ctx = {};
   const year = new Date().getFullYear();
@@ -204,7 +218,7 @@ async function loadPerfContext(){
           }
         }
         if (actual !== null && annualTarget) {
-          entry.achRate = Math.round((actual / annualTarget) * 1000) / 10; // 소수1자리 %
+          entry.achRate = calcAch(actual, annualTarget, ind.direction); // 상향/하향 반영
           cntActual++;
         }
         const hasLastYearActual = ind.lastYearActual !== null && ind.lastYearActual !== undefined;
@@ -214,13 +228,13 @@ async function loadPerfContext(){
         const currentBudget = ind.currentYearBudget ?? annualTarget;
         if (hasLastYearActual && hasLastYearTarget) {
           // 작년 예산 규모까지 있으면: 작년 실제 집행률 + 올해 예산 증가율을 정확히 계산
-          entry.lastYearOwnRate = Math.round((ind.lastYearActual / ind.lastYearTarget) * 1000) / 10;
+          entry.lastYearOwnRate = calcAch(ind.lastYearActual, ind.lastYearTarget, ind.direction);
           if (currentBudget) {
             entry.budgetGrowthPct = Math.round(((currentBudget - ind.lastYearTarget) / ind.lastYearTarget) * 1000) / 10;
           }
         } else if (hasLastYearActual && annualTarget) {
           // 작년 예산 정보 없으면: 올해 목표 대비로만 근사 (규모 변화는 반영 못함)
-          entry.lastYearRate = Math.round((ind.lastYearActual / annualTarget) * 1000) / 10;
+          entry.lastYearRate = calcAch(ind.lastYearActual, annualTarget, ind.direction);
         }
       } catch(e){}
       if (entry.achRate !== undefined || entry.lastYearRate !== undefined || entry.lastYearOwnRate !== undefined) {
