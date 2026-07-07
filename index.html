@@ -1732,6 +1732,23 @@ const Presentation = makeIcon([["path", {
   // ──  기관 경영평가 지표  ──
   // ─────────────────────────────────────────────────────────────
   const INST_DEFAULT_INDICATORS = []; // 지표는 Supabase perf_meta에서 로딩;
+  // 경영관리 계량지표 (발표 전용, 실적 없음 · 배점/목표전망/달성률만) — 3그룹 13개
+  const MGMT_DEFAULT_INDICATORS = [
+    { group: '경영일반', name: '국민소통', score: 1.0, forecast: null },
+    { group: '경영일반', name: '일자리 및 균등한 기회', score: 2.0, forecast: null },
+    { group: '경영일반', name: '안전 및 재난관리', score: 2.0, forecast: null },
+    { group: '경영일반', name: '친환경·탄소중립', score: 0.5, forecast: null },
+    { group: '경영일반', name: '상생·협력 및 지역발전', score: 2.0, forecast: null },
+    { group: '경영일반', name: '윤리경영', score: 1.0, forecast: null },
+    { group: '재무', name: '총자산회전율', score: 1.0, forecast: null },
+    { group: '재무', name: '영업이익률', score: 2.0, forecast: null },
+    { group: '재무', name: '부채비율', score: 2.0, forecast: null },
+    { group: '재무', name: '이자보상비율', score: 1.0, forecast: null },
+    { group: '재무', name: '노동생산성', score: 2.5, forecast: null },
+    { group: '재무', name: '자본생산성', score: 2.5, forecast: null },
+    { group: '인건비', name: '총인건비관리', score: 3.0, forecast: null },
+  ];
+  const MGMT_GROUPS = ['경영일반', '재무', '인건비'];
   const INST_BUSINESSES = ['보증사업', '보증관리사업', '기금수탁사업'];
 
   // ─────────────────────────────────────────────────────────────
@@ -1969,6 +1986,7 @@ const Presentation = makeIcon([["path", {
     const [instData, setInstData] = useState({});
     const [ceoInds, setCeoInds] = useState(CEO_DEFAULT_INDICATORS);
     const [instInds, setInstInds] = useState(INST_DEFAULT_INDICATORS);
+    const [mgmtInds, setMgmtInds] = useState([]);
     const [year, setYear] = useState(2026);
     const [refMonth, setRefMonth] = useState(5);
     const touchStartX = useRef(null);
@@ -1989,6 +2007,13 @@ const Presentation = makeIcon([["path", {
         try {
           const r = await appStorage.get('inst:meta:indicators', true);
           if (r?.value) setInstInds(JSON.parse(r.value));else if (emb?.inst?.indicators) setInstInds(emb.inst.indicators);
+        } catch (e) {}
+        try {
+          const rm = await appStorage.get('inst:meta:management', true);
+          if (rm?.value) {
+            const saved = JSON.parse(rm.value);
+            if (Array.isArray(saved)) setMgmtInds(saved);
+          }
         } catch (e) {}
         const latest = findLatestMonth(cd) || findLatestMonth(id) || emb?.ceo?.meta?.refMonth || 5;
         setRefMonth(latest);
@@ -2075,6 +2100,11 @@ const Presentation = makeIcon([["path", {
 
     // 슬라이드 정의
     const ceoSlides = [{
+      type: 'section',
+      kind: 'ceo',
+      title: '기관장 경영계약 실적',
+      color: 'blue'
+    }, {
       type: 'summary',
       kind: 'ceo',
       title: '기관장 경영계약',
@@ -2097,6 +2127,11 @@ const Presentation = makeIcon([["path", {
       status: ceoStatus
     }];
     const instSlides = [{
+      type: 'section',
+      kind: 'inst',
+      title: '기관 경영평가 실적',
+      color: 'emerald'
+    }, {
       type: 'summary',
       kind: 'inst',
       title: '기관 경영평가',
@@ -2106,7 +2141,7 @@ const Presentation = makeIcon([["path", {
     }, {
       type: 'signals',
       kind: 'inst',
-      title: '기관 경영평가 — 지표 현황',
+      title: '주요사업 계량지표',
       color: 'emerald',
       status: instStatus,
       groups: INST_BUSINESSES,
@@ -2118,7 +2153,25 @@ const Presentation = makeIcon([["path", {
       color: 'emerald',
       status: instStatus,
       business: biz
-    }))];
+    })), ...(mgmtInds && mgmtInds.length > 0 ? [{
+      type: 'management',
+      kind: 'inst',
+      title: '경영관리 계량지표',
+      subtitle: '경영일반',
+      color: 'emerald',
+      mgmt: mgmtInds,
+      mgmtGroups: ['경영일반'],
+      showTotal: false
+    }, {
+      type: 'management',
+      kind: 'inst',
+      title: '경영관리 계량지표',
+      subtitle: '재무 · 인건비',
+      color: 'emerald',
+      mgmt: mgmtInds,
+      mgmtGroups: ['재무', '인건비'],
+      showTotal: true
+    }] : [])];
     const slides = [{
       type: 'cover'
     }, ...(scope === 'inst' || scope === 'both' ? instSlides : []), ...(scope === 'ceo' || scope === 'both' ? ceoSlides : []), {
@@ -2256,8 +2309,14 @@ const Presentation = makeIcon([["path", {
         @keyframes pmFadeIn{from{opacity:0;}to{opacity:1;}}
         @keyframes pmBarGrow{from{width:0;}}
         @keyframes pmGlow{0%,100%{opacity:0.5;}50%{opacity:0.9;}}
+        @keyframes pmPulseWatch{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0);}50%{box-shadow:0 0 0 5px rgba(245,158,11,0.22);}}
+        @keyframes pmPulseAlert{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,0);}50%{box-shadow:0 0 0 5px rgba(244,63,94,0.28);}}
         .pm-slide{animation:pmFadeUp .5s cubic-bezier(.22,.61,.36,1) both;}
         .pm-stagger>*{animation:pmFadeUp .5s cubic-bezier(.22,.61,.36,1) both;}
+        .pm-stagger>.pm-pulse-watch{animation:pmFadeUp .5s cubic-bezier(.22,.61,.36,1) both, pmPulseWatch 2.4s ease-in-out infinite;}
+        .pm-stagger>.pm-pulse-alert{animation:pmFadeUp .5s cubic-bezier(.22,.61,.36,1) both, pmPulseAlert 2.2s ease-in-out infinite;}
+        .pm-pulse-watch{animation:pmPulseWatch 2.4s ease-in-out infinite;}
+        .pm-pulse-alert{animation:pmPulseAlert 2.2s ease-in-out infinite;}
         .pm-bar-fill{animation:pmBarGrow 1s cubic-bezier(.22,.61,.36,1) both;}
         .pm-glass{background:rgba(255,255,255,0.06);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);}
         .pm-aurora{position:absolute;border-radius:9999px;filter:blur(80px);animation:pmGlow 8s ease-in-out infinite;}
@@ -2312,7 +2371,18 @@ const Presentation = makeIcon([["path", {
     }, slide + 1, " / ", slides.length))), /*#__PURE__*/React.createElement("div", {
       key: slide,
       className: `pm-slide present-scroll min-h-screen flex flex-col items-center justify-center py-16 overflow-y-auto relative z-10 ${cur.type === 'signals' ? 'px-4 md:px-8' : 'px-6 md:px-16'}`
-    }, cur.type === 'cover' && /*#__PURE__*/React.createElement("div", {
+    }, cur.type === 'section' && /*#__PURE__*/React.createElement("div", {
+      className: "text-center pm-stagger"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-slate-500 text-lg md:text-xl font-medium tracking-widest mb-6",
+      style: { animationDelay: '0ms' }
+    }, cur.kind === 'ceo' ? "SECTION 2" : "SECTION 1"), /*#__PURE__*/React.createElement("h1", {
+      className: "pm-display text-5xl md:text-7xl",
+      style: { animationDelay: '120ms', lineHeight: 1.1, color: accentMap[cur.color].hex }
+    }, cur.title), /*#__PURE__*/React.createElement("div", {
+      className: "mx-auto mt-8 rounded-full",
+      style: { animationDelay: '260ms', width: '80px', height: '4px', background: accentMap[cur.color].hex }
+    })), cur.type === 'cover' && /*#__PURE__*/React.createElement("div", {
       className: "text-center pm-stagger"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-slate-400 text-xl md:text-2xl font-medium tracking-widest mb-6",
@@ -2445,24 +2515,25 @@ const Presentation = makeIcon([["path", {
         className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 pm-stagger"
       }, inds.map((i, ii) => {
         const c = statusColors[i.status];
+        const emphasized = i.status === 'watch' || i.status === 'alert';
+        const tileStyle = { animationDelay: `${ii * 45}ms` };
+        if (emphasized) {
+          tileStyle.background = c.hex + '14';
+        }
+        const pulseClass = i.status === 'alert' ? ' pm-pulse-alert' : i.status === 'watch' ? ' pm-pulse-watch' : '';
         return /*#__PURE__*/React.createElement("div", {
           key: i.code,
-          className: "pm-tile p-4",
-          style: {
-            animationDelay: `${ii * 45}ms`
-          }
+          className: "pm-tile p-4" + pulseClass,
+          style: tileStyle
         }, /*#__PURE__*/React.createElement("div", {
           className: "flex items-center justify-between mb-1.5"
         }, /*#__PURE__*/React.createElement("span", {
           className: "text-xs text-slate-500"
         }, i.code), /*#__PURE__*/React.createElement("span", {
-          className: "text-[11px] px-2 py-0.5 rounded-full",
-          style: {
-            background: c.hex + '22',
-            color: c.hex
-          }
-        }, c.label)), /*#__PURE__*/React.createElement("div", {
-          className: "text-sm font-medium leading-tight mb-3 h-10 overflow-hidden text-slate-200"
+          className: emphasized ? "text-[11px] px-2 py-0.5 rounded-full font-semibold" : "text-[11px] px-2 py-0.5 rounded-full",
+          style: emphasized ? { background: c.hex, color: '#fff' } : { background: c.hex + '22', color: c.hex }
+        }, i.status === 'alert' ? '\u26A0 ' + c.label : c.label)), /*#__PURE__*/React.createElement("div", {
+          className: emphasized ? "text-base font-semibold leading-tight mb-3 h-11 overflow-hidden text-slate-100" : "text-base font-medium leading-tight mb-3 h-11 overflow-hidden text-slate-200"
         }, i.name), /*#__PURE__*/React.createElement("div", {
           className: "flex items-baseline gap-1 mb-2"
         }, /*#__PURE__*/React.createElement("span", {
@@ -2470,26 +2541,28 @@ const Presentation = makeIcon([["path", {
           style: {
             color: c.hex
           }
-        }, i.ach === null ? '—' : /*#__PURE__*/React.createElement(CountUp, {
+        }, i.ach === null ? '\u2014' : /*#__PURE__*/React.createElement(CountUp, {
           value: i.ach,
           duration: 700
         })), i.ach !== null && /*#__PURE__*/React.createElement("span", {
           className: "text-sm text-slate-500"
         }, "%"), i.diff !== null && i.diff !== undefined && /*#__PURE__*/React.createElement("span", {
           className: `text-xs font-medium ml-auto ${i.diff > 0 ? 'text-emerald-400' : i.diff < 0 ? 'text-rose-400' : 'text-slate-500'}`
-        }, i.diff > 0 ? '▲' : i.diff < 0 ? '▼' : '—', Math.abs(i.diff).toFixed(0), "%p")), /*#__PURE__*/React.createElement("div", {
-          className: "relative h-1.5 rounded-full overflow-hidden",
+        }, i.diff > 0 ? '\u25B2' : i.diff < 0 ? '\u25BC' : '\u2014', Math.abs(i.diff).toFixed(0), "%p")), /*#__PURE__*/React.createElement("div", {
+          className: "relative h-1.5 rounded-full overflow-hidden mb-1",
           style: {
             background: 'rgba(255,255,255,0.1)'
           }
         }, /*#__PURE__*/React.createElement("div", {
           className: "h-full rounded-full pm-bar-fill",
           style: {
-            width: `${i.ach === null ? 0 : Math.min(Math.max(i.ach, 0), 100)}%`,
+            width: `${i.annual === null || i.annual === undefined ? 0 : Math.min(Math.max(i.annual, 0), 100)}%`,
             background: c.hex,
             animationDelay: `${ii * 45 + 200}ms`
           }
-        })));
+        })), /*#__PURE__*/React.createElement("div", {
+          className: "text-[10px] text-slate-500"
+        }, i.annual === null || i.annual === undefined ? '\uC5F0 \uC9C4\uCC99\uB3C4 \u2014' : `\uC5F0 \uC9C4\uCC99\uB3C4 ${Math.round(i.annual)}%`));
       })));
     }))), cur.type === 'issues' && (() => {
       const alerts = cur.status.filter(i => i.status === 'alert');
@@ -2582,9 +2655,16 @@ const Presentation = makeIcon([["path", {
       const items = cur.status.filter(function(i){ return (i.status === 'alert' || i.status === 'watch') && i.business === cur.business; });
 
       var titleDiv = /*#__PURE__*/React.createElement("div", {
-        className: "pm-display text-3xl md:text-4xl mb-8",
-        style: { color: accentMap[cur.color].hex }
-      }, cur.title);
+        className: "mb-8"
+      },
+        /*#__PURE__*/React.createElement("div", {
+          className: "text-sm md:text-base font-semibold tracking-wide mb-2",
+          style: { color: accentMap[cur.color].hex }
+        }, "중점관리지표 부진사유 및 조치계획"),
+        /*#__PURE__*/React.createElement("div", {
+          className: "pm-display text-3xl md:text-4xl text-slate-100"
+        }, cur.title)
+      );
 
       var body;
       if (items.length === 0) {
@@ -2595,7 +2675,7 @@ const Presentation = makeIcon([["path", {
           /*#__PURE__*/React.createElement("div", { className: "text-3xl md:text-4xl font-bold text-emerald-300" }, "중점관리 대상 없음")
         );
       } else {
-        var tiles = items.map(function(i){
+        var tiles = items.map(function(i, ti){
           var color = i.status === 'alert' ? 'rose' : 'amber';
           var nameRow = /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between mb-2" },
             /*#__PURE__*/React.createElement("span", { className: "text-lg md:text-xl font-medium" },
@@ -2617,17 +2697,84 @@ const Presentation = makeIcon([["path", {
             ) : null;
             causeAction = /*#__PURE__*/React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-sm md:text-base" }, causeBox, actionBox);
           }
-          return /*#__PURE__*/React.createElement("div", { key: i.code, className: "pm-tile px-5 py-4" }, nameRow, causeAction);
+          return /*#__PURE__*/React.createElement("div", { key: i.code, className: "pm-tile px-5 py-4", style: { animationDelay: (ti * 90) + 'ms' } }, nameRow, causeAction);
         });
 
         body = /*#__PURE__*/React.createElement("div", { className: "w-full" },
-          /*#__PURE__*/React.createElement("div", { className: "space-y-3" }, tiles)
+          /*#__PURE__*/React.createElement("div", { className: "space-y-3 pm-stagger" }, tiles)
         );
       }
 
       return /*#__PURE__*/React.createElement("div", {
         className: "absolute inset-0 flex flex-col items-center justify-center overflow-y-auto present-scroll px-6 md:px-16 pt-24 pb-16"
       }, /*#__PURE__*/React.createElement("div", { className: "w-full max-w-5xl my-auto" }, titleDiv, body));
+    })(), cur.type === 'management' && (() => {
+      var mgmt = cur.mgmt || [];
+      var groups = cur.mgmtGroups || ['경영일반', '재무', '인건비'];
+      var accent = accentMap[cur.color].hex;
+      var fmtNum = function(v){ return (Math.round(v * 100) / 100).toString(); };
+      // 총계: 전체 경영관리 지표(13개) 합산 — 마지막 슬라이드에만 표시
+      var tScore = 0, tFore = 0;
+      mgmt.forEach(function(m){ tScore += parseFloat(m.score) || 0; if (m.forecast !== null && m.forecast !== undefined && m.forecast !== '') tFore += parseFloat(m.forecast) || 0; });
+      var tPct = tScore > 0 ? Math.round(tFore / tScore * 1000) / 10 : 0;
+
+      var groupBlocks = groups.map(function(g){
+        var rows = mgmt.filter(function(m){ return m.group === g; });
+        if (rows.length === 0) return null;
+        var gScore = 0, gFore = 0;
+        rows.forEach(function(m){ gScore += parseFloat(m.score) || 0; if (m.forecast !== null && m.forecast !== undefined && m.forecast !== '') gFore += parseFloat(m.forecast) || 0; });
+        var gPct = gScore > 0 ? Math.round(gFore / gScore * 1000) / 10 : 0;
+
+        var trs = rows.map(function(m, ri){
+          var pct = (m.score && parseFloat(m.score) > 0 && m.forecast !== null && m.forecast !== undefined && m.forecast !== '') ? Math.round(parseFloat(m.forecast) / parseFloat(m.score) * 1000) / 10 : null;
+          return /*#__PURE__*/React.createElement("tr", { key: ri, className: "border-b border-white/[0.04]" },
+            /*#__PURE__*/React.createElement("td", { className: "py-2.5 px-4 text-slate-200" }, m.name),
+            /*#__PURE__*/React.createElement("td", { className: "py-2.5 px-4 text-center text-slate-400 tabular-nums" }, fmtNum(m.score)),
+            /*#__PURE__*/React.createElement("td", { className: "py-2.5 px-4 text-center text-slate-200 tabular-nums" }, m.forecast === null || m.forecast === undefined || m.forecast === '' ? '—' : fmtNum(m.forecast)),
+            /*#__PURE__*/React.createElement("td", { className: "py-2.5 px-4 text-center font-semibold tabular-nums", style: { color: accent } }, pct === null ? '—' : pct + '%')
+          );
+        });
+        var subtotal = /*#__PURE__*/React.createElement("tr", { className: "bg-white/[0.03] font-semibold border-t border-white/10" },
+          /*#__PURE__*/React.createElement("td", { className: "py-2 px-4 text-slate-300" }, "소계"),
+          /*#__PURE__*/React.createElement("td", { className: "py-2 px-4 text-center text-slate-300 tabular-nums" }, fmtNum(gScore)),
+          /*#__PURE__*/React.createElement("td", { className: "py-2 px-4 text-center text-slate-300 tabular-nums" }, fmtNum(gFore)),
+          /*#__PURE__*/React.createElement("td", { className: "py-2 px-4 text-center tabular-nums", style: { color: accent } }, gPct + '%')
+        );
+        return /*#__PURE__*/React.createElement("div", { key: g, className: "mb-6" },
+          /*#__PURE__*/React.createElement("div", { className: "text-lg md:text-xl font-semibold text-slate-300 mb-2 border-l-4 pl-3", style: { borderColor: accent } }, g),
+          /*#__PURE__*/React.createElement("div", { className: "pm-tile overflow-hidden" }, /*#__PURE__*/React.createElement("table", { className: "w-full text-sm md:text-base", style: { borderCollapse: 'collapse' } },
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { className: "text-xs text-slate-500 border-b border-white/10" },
+              /*#__PURE__*/React.createElement("th", { className: "py-2 px-4 text-left font-medium" }, "지표명"),
+              /*#__PURE__*/React.createElement("th", { className: "py-2 px-4 text-center font-medium w-24" }, "배점"),
+              /*#__PURE__*/React.createElement("th", { className: "py-2 px-4 text-center font-medium w-28" }, "목표(전망)"),
+              /*#__PURE__*/React.createElement("th", { className: "py-2 px-4 text-center font-medium w-24" }, "달성률")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null, trs.concat([subtotal]))
+          ))
+        );
+      });
+
+      var grandTotal = /*#__PURE__*/React.createElement("div", { className: "mt-2 rounded-xl overflow-hidden", style: { background: accent + '18' } },
+        /*#__PURE__*/React.createElement("table", { className: "w-full text-base md:text-lg font-bold", style: { borderCollapse: 'collapse' } },
+          /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null,
+            /*#__PURE__*/React.createElement("td", { className: "py-3.5 px-4 text-slate-200" }, "총계"),
+            /*#__PURE__*/React.createElement("td", { className: "py-3.5 px-4 text-center text-slate-300 tabular-nums w-24" }, fmtNum(tScore)),
+            /*#__PURE__*/React.createElement("td", { className: "py-3.5 px-4 text-center text-slate-200 tabular-nums w-28" }, fmtNum(tFore)),
+            /*#__PURE__*/React.createElement("td", { className: "py-3.5 px-4 text-center tabular-nums w-24", style: { color: accent } }, tPct + '%')
+          ))
+        )
+      );
+
+      return /*#__PURE__*/React.createElement("div", {
+        className: "absolute inset-0 flex flex-col items-center justify-center overflow-y-auto present-scroll px-6 md:px-16 pt-24 pb-16"
+      }, /*#__PURE__*/React.createElement("div", { className: "w-full max-w-5xl my-auto" },
+        /*#__PURE__*/React.createElement("div", { className: "mb-8" },
+          /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl", style: { color: accent } }, cur.title),
+          cur.subtitle ? /*#__PURE__*/React.createElement("div", { className: "text-lg md:text-xl text-slate-400 mt-1" }, cur.subtitle) : null
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "pm-stagger" }, groupBlocks),
+        cur.showTotal ? grandTotal : null
+      ));
     })(), cur.type === 'closing' && (() => {
       var today = new Date();
       var dateStr = today.getFullYear() + '. ' + (today.getMonth() + 1) + '. ' + today.getDate() + '.';
@@ -4853,6 +5000,8 @@ const Presentation = makeIcon([["path", {
     });
     const [userSetRef, setUserSetRef] = useState(false);
     const [indicators, setIndicators] = useState(INST_DEFAULT_INDICATORS);
+    const [mgmtInds, setMgmtInds] = useState(MGMT_DEFAULT_INDICATORS);
+    const [manageSubTab, setManageSubTab] = useState('main'); // 'main'(주요사업) | 'mgmt'(경영관리)
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
     const [saveStatus, setSaveStatus] = useState('');
@@ -4887,6 +5036,13 @@ const Presentation = makeIcon([["path", {
         } catch (e) {
           if (emb?.inst?.indicators) setIndicators(emb.inst.indicators);
         }
+        try {
+          const rm = await appStorage.get('inst:meta:management', true);
+          if (rm?.value) {
+            const saved = JSON.parse(rm.value);
+            if (Array.isArray(saved) && saved.length > 0) setMgmtInds(saved);
+          }
+        } catch (e) {}
         await loadYearData(year, true);
       } finally {
         setLoading(false);
@@ -4944,6 +5100,21 @@ const Presentation = makeIcon([["path", {
       } catch (e) {
         setSaveStatus('저장 실패');
       }
+    };
+    const saveMgmt = async ni => {
+      setMgmtInds(ni);
+      setSaveStatus('저장 중...');
+      try {
+        await appStorage.set('inst:meta:management', JSON.stringify(ni), true);
+        setSaveStatus('저장됨 ✓');
+        setTimeout(() => setSaveStatus(''), 1500);
+      } catch (e) {
+        setSaveStatus('저장 실패');
+      }
+    };
+    const handleMgmtField = (idx, field, value) => {
+      const ni = mgmtInds.map((m, i) => i === idx ? { ...m, [field]: value } : m);
+      saveMgmt(ni);
     };
     const handleBackup = async () => {
       try {
@@ -5925,7 +6096,12 @@ const Presentation = makeIcon([["path", {
       ws: 'inst', indicators: indicators, data: data, indicatorStatus: indicatorStatus
     }), tab === 'manage' && /*#__PURE__*/React.createElement(InstManageTab, {
       indicators: indicators,
-      saveIndicators: saveIndicators
+      saveIndicators: saveIndicators,
+      mgmtInds: mgmtInds,
+      saveMgmt: saveMgmt,
+      handleMgmtField: handleMgmtField,
+      manageSubTab: manageSubTab,
+      setManageSubTab: setManageSubTab
     })));
   }
 
@@ -6184,9 +6360,104 @@ const Presentation = makeIcon([["path", {
   }
 
   // 기관 지표관리
+  function MgmtManagePanel({ mgmtInds, saveMgmt, handleMgmtField }) {
+    const [local, setLocal] = useState(mgmtInds);
+    const [dirty, setDirty] = useState(false);
+    useEffect(() => { setLocal(mgmtInds); setDirty(false); }, [mgmtInds]);
+    const setField = (idx, field, value) => {
+      setLocal(local.map((m, i) => i === idx ? { ...m, [field]: value } : m));
+      setDirty(true);
+    };
+    const addRow = (group) => {
+      setLocal([...local, { group: group, name: '', score: 0, forecast: null }]);
+      setDirty(true);
+    };
+    const removeRow = (idx) => {
+      setLocal(local.filter((_, i) => i !== idx));
+      setDirty(true);
+    };
+    const doSave = () => { saveMgmt(local); setDirty(false); };
+    // 총계
+    const totalScore = local.reduce((s, m) => s + (parseFloat(m.score) || 0), 0);
+    const totalForecast = local.reduce((s, m) => s + (m.forecast === null || m.forecast === undefined || m.forecast === '' ? 0 : parseFloat(m.forecast) || 0), 0);
+    const totalPct = totalScore > 0 ? Math.round(totalForecast / totalScore * 1000) / 10 : 0;
+    return /*#__PURE__*/React.createElement("div", { className: "space-y-4" },
+      /*#__PURE__*/React.createElement("div", { className: "bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-900 flex items-center justify-between" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("p", { className: "font-medium mb-1" }, "\uD83D\uDCCB \uACBD\uC601\uAD00\uB9AC \uACC4\uB7C9\uC9C0\uD45C"),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs" }, "\uBC1C\uD45C \uC790\uB8CC \uC804\uC6A9. \uBC30\uC810\uACFC \uBAA9\uD45C(\uC804\uB9DD)\ub97c \uC785\ub825\ud558\uba74 \ub2ec\uc131\ub960\uc774 \uc790\ub3d9 \uacc4\uc0b0\ub429\ub2c8\ub2e4."),
+          /*#__PURE__*/React.createElement("p", { className: "text-xs mt-1 font-medium" }, `\ucd1d\uacc4: \ubc30\uc810 ${totalScore.toFixed(1)} \u00b7 \ubaa9\ud45c\uc804\ub9dd ${totalForecast.toFixed(2)} \u00b7 \ub2ec\uc131\ub960 ${totalPct}%`)
+        ),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: doSave,
+          className: "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap " + (dirty ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400 cursor-default")
+        }, dirty ? "\uc800\uc7a5" : "\uc800\uc7a5\ub428 \u2713")
+      ),
+      MGMT_GROUPS.map(group => {
+        const rows = local.map((m, idx) => ({ m, idx })).filter(x => x.m.group === group);
+        const gScore = rows.reduce((s, x) => s + (parseFloat(x.m.score) || 0), 0);
+        const gForecast = rows.reduce((s, x) => s + (x.m.forecast === null || x.m.forecast === undefined || x.m.forecast === '' ? 0 : parseFloat(x.m.forecast) || 0), 0);
+        const gPct = gScore > 0 ? Math.round(gForecast / gScore * 1000) / 10 : 0;
+        return /*#__PURE__*/React.createElement("div", { key: group, className: "bg-white border rounded-lg overflow-hidden" },
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-2.5 bg-slate-50 border-b flex items-center justify-between" },
+            /*#__PURE__*/React.createElement("span", { className: "font-semibold text-slate-700" }, group),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs text-slate-500" }, `\uc18c\uacc4 \ubc30\uc810 ${gScore.toFixed(1)} \u00b7 \uc804\ub9dd ${gForecast.toFixed(2)} \u00b7 ${gPct}%`)
+          ),
+          /*#__PURE__*/React.createElement("table", { className: "w-full text-sm" },
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { className: "text-slate-500 text-xs border-b" },
+              /*#__PURE__*/React.createElement("th", { className: "px-3 py-2 text-left" }, "\uc9c0\ud45c\uba85"),
+              /*#__PURE__*/React.createElement("th", { className: "px-2 py-2 text-center w-20" }, "\ubc30\uc810"),
+              /*#__PURE__*/React.createElement("th", { className: "px-2 py-2 text-center w-24" }, "\ubaa9\ud45c(\uc804\ub9dd)"),
+              /*#__PURE__*/React.createElement("th", { className: "px-2 py-2 text-center w-20" }, "\ub2ec\uc131\ub960"),
+              /*#__PURE__*/React.createElement("th", { className: "px-2 py-2 w-10" }, "")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null, rows.map(({ m, idx }) => {
+              const pct = (m.score && parseFloat(m.score) > 0 && m.forecast !== null && m.forecast !== undefined && m.forecast !== '') ? Math.round(parseFloat(m.forecast) / parseFloat(m.score) * 1000) / 10 : null;
+              return /*#__PURE__*/React.createElement("tr", { key: idx, className: "border-b last:border-0" },
+                /*#__PURE__*/React.createElement("td", { className: "px-3 py-1.5" }, /*#__PURE__*/React.createElement("input", {
+                  value: m.name || '',
+                  onChange: e => setField(idx, 'name', e.target.value),
+                  placeholder: "\uc9c0\ud45c\uba85",
+                  className: "w-full px-2 py-1 border rounded text-sm"
+                })),
+                /*#__PURE__*/React.createElement("td", { className: "px-2 py-1.5" }, /*#__PURE__*/React.createElement("input", {
+                  type: "number", step: "0.1",
+                  value: m.score ?? '',
+                  onChange: e => setField(idx, 'score', e.target.value === '' ? 0 : parseFloat(e.target.value)),
+                  className: "w-full px-2 py-1 border rounded text-sm text-center"
+                })),
+                /*#__PURE__*/React.createElement("td", { className: "px-2 py-1.5" }, /*#__PURE__*/React.createElement("input", {
+                  type: "number", step: "0.01",
+                  value: m.forecast ?? '',
+                  onChange: e => setField(idx, 'forecast', e.target.value === '' ? null : parseFloat(e.target.value)),
+                  placeholder: "\u2014",
+                  className: "w-full px-2 py-1 border rounded text-sm text-center"
+                })),
+                /*#__PURE__*/React.createElement("td", { className: "px-2 py-1.5 text-center font-medium text-emerald-700 tabular-nums" }, pct === null ? '\u2014' : `${pct}%`),
+                /*#__PURE__*/React.createElement("td", { className: "px-2 py-1.5 text-center" }, /*#__PURE__*/React.createElement("button", {
+                  onClick: () => removeRow(idx),
+                  className: "text-rose-500 hover:text-rose-700 text-xs"
+                }, "\u2715"))
+              );
+            }))
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "px-4 py-2 border-t bg-slate-50/50" }, /*#__PURE__*/React.createElement("button", {
+            onClick: () => addRow(group),
+            className: "text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+          }, "+ ", group, " \uc9c0\ud45c \ucd94\uac00"))
+        );
+      })
+    );
+  }
+
   function InstManageTab({
     indicators,
-    saveIndicators
+    saveIndicators,
+    mgmtInds,
+    saveMgmt,
+    handleMgmtField,
+    manageSubTab,
+    setManageSubTab
   }) {
     const [local, setLocal] = useState(indicators);
     const [expandedIdx, setExpandedIdx] = useState(null);
@@ -6230,6 +6501,18 @@ const Presentation = makeIcon([["path", {
       setLocal(n);
     };
     return /*#__PURE__*/React.createElement("div", {
+      className: "space-y-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 border-b border-slate-200"
+    }, ['main', 'mgmt'].map(st => /*#__PURE__*/React.createElement("button", {
+      key: st,
+      onClick: () => setManageSubTab(st),
+      className: "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition " + (manageSubTab === st ? "border-emerald-500 text-emerald-700" : "border-transparent text-slate-400 hover:text-slate-600")
+    }, st === 'main' ? '주요사업' : '경영관리')), ), manageSubTab === 'mgmt' ? /*#__PURE__*/React.createElement(MgmtManagePanel, {
+      mgmtInds: mgmtInds,
+      saveMgmt: saveMgmt,
+      handleMgmtField: handleMgmtField
+    }) : /*#__PURE__*/React.createElement("div", {
       className: "space-y-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900"
@@ -6483,7 +6766,7 @@ const Presentation = makeIcon([["path", {
         onClick: () => clearMonthlyOverrides(idx),
         className: "text-xs text-rose-600 hover:underline"
       }, "\uC774 \uC9C0\uD45C \uC6D4\uBCC4 \uC218\uB3D9\uAC12 \uC804\uCCB4 \uCD08\uAE30\uD654")))));
-    }))))));
+    })))))));
   }
 
   // ── 앱 렌더링 ──
