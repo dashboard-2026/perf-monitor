@@ -1987,6 +1987,7 @@ const Presentation = makeIcon([["path", {
     const [ceoInds, setCeoInds] = useState(CEO_DEFAULT_INDICATORS);
     const [instInds, setInstInds] = useState(INST_DEFAULT_INDICATORS);
     const [mgmtInds, setMgmtInds] = useState([]);
+    const [mgmtLastYearRate, setMgmtLastYearRate] = useState(82.2);
     const [overview, setOverview] = useState({ inst: '', ceo: '' });
     const [editingOverview, setEditingOverview] = useState(false);
     const [year, setYear] = useState(2026);
@@ -2015,6 +2016,13 @@ const Presentation = makeIcon([["path", {
           if (rm?.value) {
             const saved = JSON.parse(rm.value);
             if (Array.isArray(saved)) setMgmtInds(saved);
+          }
+        } catch (e) {}
+        try {
+          const rmm = await appStorage.get('inst:meta:mgmt_meta', true);
+          if (rmm?.value) {
+            const saved = JSON.parse(rmm.value);
+            if (saved && typeof saved.lastYearRate === 'number') setMgmtLastYearRate(saved.lastYearRate);
           }
         } catch (e) {}
         try {
@@ -2170,7 +2178,9 @@ const Presentation = makeIcon([["path", {
       color: 'emerald',
       mgmt: mgmtInds,
       mgmtGroups: ['경영일반'],
-      showTotal: false
+      showTotal: false,
+      showSummary: true,
+      lastYearRate: mgmtLastYearRate
     }, {
       type: 'management',
       kind: 'inst',
@@ -2748,6 +2758,25 @@ const Presentation = makeIcon([["path", {
       mgmt.forEach(function(m){ tScore += parseFloat(m.score) || 0; if (m.forecast !== null && m.forecast !== undefined && m.forecast !== '') tFore += parseFloat(m.forecast) || 0; });
       var tPct = tScore > 0 ? Math.round(tFore / tScore * 1000) / 10 : 0;
 
+      // 요약 카드 (첫 슬라이드에만): '25년 득점률 / '26년 예상 / 전년대비
+      var summaryCard = null;
+      if (cur.showSummary) {
+        var lastRate = typeof cur.lastYearRate === 'number' ? cur.lastYearRate : 0;
+        var diff = Math.round((tPct - lastRate) * 10) / 10;
+        var diffUp = diff >= 0;
+        var cardBox = function(label, valueStr, valColor){
+          return /*#__PURE__*/React.createElement("div", { className: "pm-tile px-6 py-5 flex-1 text-center" },
+            /*#__PURE__*/React.createElement("div", { className: "text-slate-400 text-sm mb-2" }, label),
+            /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl", style: valColor ? { color: valColor } : { color: '#e2e8f0' } }, valueStr)
+          );
+        };
+        summaryCard = /*#__PURE__*/React.createElement("div", { className: "flex flex-col md:flex-row gap-4 mb-8" },
+          cardBox("'25년 득점률", lastRate.toFixed(1) + '%', null),
+          cardBox("'26년 예상 득점률", tPct.toFixed(1) + '%', accent),
+          cardBox("전년대비", (diffUp ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(1) + '%p ' + (diffUp ? '상승' : '하락') + ' 예상', diffUp ? '#10b981' : '#f43f5e')
+        );
+      }
+
       var groupBlocks = groups.map(function(g){
         var rows = mgmt.filter(function(m){ return m.group === g; });
         if (rows.length === 0) return null;
@@ -2802,6 +2831,7 @@ const Presentation = makeIcon([["path", {
           /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl", style: { color: accent } }, cur.title),
           cur.subtitle ? /*#__PURE__*/React.createElement("div", { className: "text-lg md:text-xl text-slate-400 mt-1" }, cur.subtitle) : null
         ),
+        summaryCard,
         /*#__PURE__*/React.createElement("div", { className: "pm-stagger" }, groupBlocks),
         cur.showTotal ? grandTotal : null
       ));
@@ -5037,6 +5067,7 @@ const Presentation = makeIcon([["path", {
     const [userSetRef, setUserSetRef] = useState(false);
     const [indicators, setIndicators] = useState(INST_DEFAULT_INDICATORS);
     const [mgmtInds, setMgmtInds] = useState(MGMT_DEFAULT_INDICATORS);
+    const [mgmtLastYearRate, setMgmtLastYearRate] = useState(82.2);
     const [manageSubTab, setManageSubTab] = useState('main'); // 'main'(주요사업) | 'mgmt'(경영관리)
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
@@ -5077,6 +5108,13 @@ const Presentation = makeIcon([["path", {
           if (rm?.value) {
             const saved = JSON.parse(rm.value);
             if (Array.isArray(saved) && saved.length > 0) setMgmtInds(saved);
+          }
+        } catch (e) {}
+        try {
+          const rmm = await appStorage.get('inst:meta:mgmt_meta', true);
+          if (rmm?.value) {
+            const saved = JSON.parse(rmm.value);
+            if (saved && typeof saved.lastYearRate === 'number') setMgmtLastYearRate(saved.lastYearRate);
           }
         } catch (e) {}
         await loadYearData(year, true);
@@ -5151,6 +5189,10 @@ const Presentation = makeIcon([["path", {
     const handleMgmtField = (idx, field, value) => {
       const ni = mgmtInds.map((m, i) => i === idx ? { ...m, [field]: value } : m);
       saveMgmt(ni);
+    };
+    const saveMgmtLastYear = async (rate) => {
+      setMgmtLastYearRate(rate);
+      try { await appStorage.set('inst:meta:mgmt_meta', JSON.stringify({ lastYearRate: rate }), true); } catch (e) {}
     };
     const handleBackup = async () => {
       try {
@@ -6136,6 +6178,8 @@ const Presentation = makeIcon([["path", {
       mgmtInds: mgmtInds,
       saveMgmt: saveMgmt,
       handleMgmtField: handleMgmtField,
+      mgmtLastYearRate: mgmtLastYearRate,
+      saveMgmtLastYear: saveMgmtLastYear,
       manageSubTab: manageSubTab,
       setManageSubTab: setManageSubTab
     })));
@@ -6396,7 +6440,7 @@ const Presentation = makeIcon([["path", {
   }
 
   // 기관 지표관리
-  function MgmtManagePanel({ mgmtInds, saveMgmt, handleMgmtField }) {
+  function MgmtManagePanel({ mgmtInds, saveMgmt, handleMgmtField, mgmtLastYearRate, saveMgmtLastYear }) {
     const [local, setLocal] = useState(mgmtInds);
     const [dirty, setDirty] = useState(false);
     useEffect(() => { setLocal(mgmtInds); setDirty(false); }, [mgmtInds]);
@@ -6422,7 +6466,17 @@ const Presentation = makeIcon([["path", {
         /*#__PURE__*/React.createElement("div", null,
           /*#__PURE__*/React.createElement("p", { className: "font-medium mb-1" }, "\uD83D\uDCCB \uACBD\uC601\uAD00\uB9AC \uACC4\uB7C9\uC9C0\uD45C"),
           /*#__PURE__*/React.createElement("p", { className: "text-xs" }, "\uBC1C\uD45C \uC790\uB8CC \uC804\uC6A9. \uBC30\uC810\uACFC \uBAA9\uD45C(\uC804\uB9DD)\ub97c \uC785\ub825\ud558\uba74 \ub2ec\uc131\ub960\uc774 \uc790\ub3d9 \uacc4\uc0b0\ub429\ub2c8\ub2e4."),
-          /*#__PURE__*/React.createElement("p", { className: "text-xs mt-1 font-medium" }, `\ucd1d\uacc4: \ubc30\uc810 ${totalScore.toFixed(1)} \u00b7 \ubaa9\ud45c\uc804\ub9dd ${totalForecast.toFixed(2)} \u00b7 \ub2ec\uc131\ub960 ${totalPct}%`)
+          /*#__PURE__*/React.createElement("p", { className: "text-xs mt-1 font-medium" }, `\ucd1d\uacc4: \ubc30\uc810 ${totalScore.toFixed(1)} \u00b7 \ubaa9\ud45c\uc804\ub9dd ${totalForecast.toFixed(2)} \u00b7 \ub2ec\uc131\ub960 ${totalPct}%`),
+          /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-3 mt-2 pt-2 border-t border-emerald-200" },
+            /*#__PURE__*/React.createElement("label", { className: "text-xs font-medium" }, "'25\ub144 \ub4dd\uc810\ub960(%)"),
+            /*#__PURE__*/React.createElement("input", {
+              type: "number", step: "0.1",
+              value: mgmtLastYearRate ?? '',
+              onChange: e => saveMgmtLastYear(e.target.value === '' ? 0 : parseFloat(e.target.value)),
+              className: "w-20 px-2 py-1 border border-emerald-300 rounded text-sm text-center"
+            }),
+            /*#__PURE__*/React.createElement("span", { className: "text-xs text-emerald-700" }, `\u2192 '26\ub144 \uc608\uc0c1 ${totalPct}% (\uc804\ub144\ub300\ube44 ${(totalPct - mgmtLastYearRate) >= 0 ? '+' : ''}${(totalPct - mgmtLastYearRate).toFixed(1)}%p)`)
+          )
         ),
         /*#__PURE__*/React.createElement("button", {
           onClick: doSave,
@@ -6492,6 +6546,8 @@ const Presentation = makeIcon([["path", {
     mgmtInds,
     saveMgmt,
     handleMgmtField,
+    mgmtLastYearRate,
+    saveMgmtLastYear,
     manageSubTab,
     setManageSubTab
   }) {
@@ -6547,7 +6603,9 @@ const Presentation = makeIcon([["path", {
     }, st === 'main' ? '주요사업' : '경영관리')), ), manageSubTab === 'mgmt' ? /*#__PURE__*/React.createElement(MgmtManagePanel, {
       mgmtInds: mgmtInds,
       saveMgmt: saveMgmt,
-      handleMgmtField: handleMgmtField
+      handleMgmtField: handleMgmtField,
+      mgmtLastYearRate: mgmtLastYearRate,
+      saveMgmtLastYear: saveMgmtLastYear
     }) : /*#__PURE__*/React.createElement("div", {
       className: "space-y-4"
     }, /*#__PURE__*/React.createElement("div", {
