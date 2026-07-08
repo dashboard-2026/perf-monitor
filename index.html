@@ -1987,6 +1987,8 @@ const Presentation = makeIcon([["path", {
     const [ceoInds, setCeoInds] = useState(CEO_DEFAULT_INDICATORS);
     const [instInds, setInstInds] = useState(INST_DEFAULT_INDICATORS);
     const [mgmtInds, setMgmtInds] = useState([]);
+    const [overview, setOverview] = useState({ inst: '', ceo: '' });
+    const [editingOverview, setEditingOverview] = useState(false);
     const [year, setYear] = useState(2026);
     const [refMonth, setRefMonth] = useState(5);
     const touchStartX = useRef(null);
@@ -2013,6 +2015,13 @@ const Presentation = makeIcon([["path", {
           if (rm?.value) {
             const saved = JSON.parse(rm.value);
             if (Array.isArray(saved)) setMgmtInds(saved);
+          }
+        } catch (e) {}
+        try {
+          const ro = await appStorage.get('inst:meta:overview', true);
+          if (ro?.value) {
+            const saved = JSON.parse(ro.value);
+            if (saved && typeof saved === 'object') setOverview({ inst: saved.inst || '', ceo: saved.ceo || '' });
           }
         } catch (e) {}
         const latest = findLatestMonth(cd) || findLatestMonth(id) || emb?.ceo?.meta?.refMonth || 5;
@@ -2175,9 +2184,15 @@ const Presentation = makeIcon([["path", {
     const slides = [{
       type: 'cover'
     }, ...(scope === 'inst' || scope === 'both' ? instSlides : []), ...(scope === 'ceo' || scope === 'both' ? ceoSlides : []), {
+      type: 'overview'
+    }, {
       type: 'closing'
     }];
     const go = dir => setSlide(s => Math.max(0, Math.min(slides.length - 1, s + dir)));
+    const saveOverview = async (next) => {
+      setOverview(next);
+      try { await appStorage.set('inst:meta:overview', JSON.stringify(next), true); } catch (e) {}
+    };
     useEffect(() => {
       if (!scope) return;
       const onKey = e => {
@@ -2790,6 +2805,12 @@ const Presentation = makeIcon([["path", {
         /*#__PURE__*/React.createElement("div", { className: "pm-stagger" }, groupBlocks),
         cur.showTotal ? grandTotal : null
       ));
+    })(), cur.type === 'overview' && (() => {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "absolute inset-0 flex flex-col items-center justify-center text-center px-6"
+      }, /*#__PURE__*/React.createElement("h1", {
+        className: "pm-display text-5xl md:text-7xl text-slate-100"
+      }, "종합 총평"));
     })(), cur.type === 'closing' && (() => {
       var today = new Date();
       var dateStr = today.getFullYear() + '. ' + (today.getMonth() + 1) + '. ' + today.getDate() + '.';
