@@ -571,8 +571,8 @@ const Presentation = makeIcon([["path", {
 
   // ── 저장소: 서버판은 Supabase REST, 내부망판은 localStorage 자동 폴백 ──
   const STORAGE_PREFIX = 'perf_dashboard:';
-  const SB_URL = '__SUPABASE_URL__';
-  const SB_ANON = '__SUPABASE_KEY__';
+  const SB_URL = 'https://iswrrkelwqrdqnuhhaih.supabase.co';
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzd3Jya2Vsd3FyZHFudWhoYWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDYxMzYsImV4cCI6MjA5NzE4MjEzNn0.jfzDTMRv-aw_WgK2-LKeFbbOHJ-sd7cUk8thcoTKlX8';
   // 키/URL 치환이 됐으면(=서버판) Supabase 모드, 아니면 localStorage 모드
   const SB_ENABLED = SB_URL.indexOf('__') === -1 && SB_ANON.indexOf('__') === -1;
   // 키에 ':meta:' 포함 → perf_meta 테이블, 아니면 perf_data
@@ -1117,7 +1117,7 @@ const Presentation = makeIcon([["path", {
     }
   }
   function getStatus(ach) {
-    if (ach === null) return 'na';
+    if (ach === null || ach === undefined || (typeof ach === 'number' && isNaN(ach))) return 'na';
     if (ach >= 100) return 'normal';
     if (ach >= 90) return 'caution';
     if (ach >= 80) return 'watch';
@@ -1761,8 +1761,8 @@ const Presentation = makeIcon([["path", {
   const PW_HASH = '03b69963c4a13605ef6d7876a76fafd120a8cfd4ebe5099c982f6eb4175c62b6';
 
   // OTP 2단계 인증 (서버판에서만 활성화 - __OTP_ENDPOINT__ 가 치환된 경우)
-  const OTP_ENDPOINT = '__OTP_ENDPOINT__';
-  const SB_KEY = '__SUPABASE_KEY__';
+  const OTP_ENDPOINT = 'https://iswrrkelwqrdqnuhhaih.supabase.co/functions/v1/quick-responder';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzd3Jya2Vsd3FyZHFudWhoYWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDYxMzYsImV4cCI6MjA5NzE4MjEzNn0.jfzDTMRv-aw_WgK2-LKeFbbOHJ-sd7cUk8thcoTKlX8';
   const OTP_ENABLED = OTP_ENDPOINT.indexOf('__') === -1;
   async function sha256(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
