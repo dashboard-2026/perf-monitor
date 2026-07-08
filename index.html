@@ -2765,9 +2765,9 @@ const Presentation = makeIcon([["path", {
         var diff = Math.round((tPct - lastRate) * 10) / 10;
         var diffUp = diff >= 0;
         var cardBox = function(label, valueStr, valColor, grow, noWrap){
-          return /*#__PURE__*/React.createElement("div", { className: "pm-tile px-6 py-5 text-center " + (grow || 'flex-1') },
+          return /*#__PURE__*/React.createElement("div", { className: "pm-tile px-6 text-center " + (grow || 'flex-1') + " " + (noWrap ? 'py-6' : 'py-5') },
             /*#__PURE__*/React.createElement("div", { className: "text-slate-400 text-sm mb-2" }, label),
-            /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl " + (noWrap ? 'whitespace-nowrap' : ''), style: valColor ? { color: valColor } : { color: '#e2e8f0' } }, valueStr)
+            /*#__PURE__*/React.createElement("div", { className: "pm-display " + (noWrap ? 'text-2xl md:text-3xl' : 'text-3xl md:text-4xl') + " " + (noWrap ? 'whitespace-nowrap' : ''), style: valColor ? { color: valColor } : { color: '#e2e8f0' } }, valueStr)
           );
         };
         summaryCard = /*#__PURE__*/React.createElement("div", { className: "flex flex-col md:flex-row gap-4 mb-8" },
