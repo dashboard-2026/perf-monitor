@@ -2087,7 +2087,7 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       arr.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.ach, 200), 0) / valid.length : 0;
+      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.ach, 100), 0) / valid.length : 0;
       return {
         counts,
         avg,
@@ -2482,8 +2482,23 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement(CountUp, {
       value: cur.sum.counts.na
     })))), /*#__PURE__*/React.createElement("div", {
-      className: "text-center text-slate-400 mt-8 text-lg"
-    }, "\uCD1D ", cur.sum.total, "\uAC1C \uC9C0\uD45C \xB7 \uC815\uC0C1 ", cur.sum.counts.normal, " / \uC8FC\uC758 ", cur.sum.counts.caution, " / \uAD00\uB9AC ", cur.sum.counts.watch, " / \uACBD\uBCF4 ", cur.sum.counts.alert, " / \uBBF8\uD655\uC815 ", cur.sum.counts.na), cur.status.filter(i => i.status === 'na').length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8"
+    }, [
+      { label: '정상', crit: '달성률 100% 이상', hex: '#10b981' },
+      { label: '주의', crit: '90% 이상 ~ 100% 미만', hex: '#0ea5e9' },
+      { label: '관리', crit: '80% 이상 ~ 90% 미만', hex: '#f59e0b' },
+      { label: '경보', crit: '80% 미만', hex: '#f43f5e' }
+    ].map(s => /*#__PURE__*/React.createElement("div", {
+      key: s.label,
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "inline-block rounded-full",
+      style: { width: '10px', height: '10px', background: s.hex }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-200 text-sm font-medium"
+    }, s.label), /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-500 text-sm"
+    }, s.crit)))), cur.status.filter(i => i.status === 'na').length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "mt-6 bg-slate-500/10 border border-slate-400/30 rounded-xl px-6 py-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-slate-300 text-sm font-medium mb-2"
@@ -2556,7 +2571,7 @@ const Presentation = makeIcon([["path", {
         }, /*#__PURE__*/React.createElement("div", {
           className: "h-full rounded-full pm-bar-fill",
           style: {
-            width: `${i.annual === null || i.annual === undefined ? 0 : Math.min(Math.max(i.annual, 0), 100)}%`,
+            width: `${i.ach === null || i.ach === undefined ? 0 : Math.min(Math.max(i.ach, 0), 100)}%`,
             background: c.hex,
             animationDelay: `${ii * 45 + 200}ms`
           }
@@ -3581,7 +3596,7 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       indicatorStatus.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.achActual, 200), 0) / valid.length : 0;
+      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.achActual, 100), 0) / valid.length : 0;
       return {
         counts,
         avg,
@@ -3828,7 +3843,7 @@ const Presentation = makeIcon([["path", {
     };
     const radarData = useMemo(() => CEO_GOALS.map(g => {
       const inds = indicatorStatus.filter(i => i.goal === g && i.achActual !== null);
-      const avg = inds.length > 0 ? inds.reduce((s, i) => s + Math.min(i.achActual, 150), 0) / inds.length : 0;
+      const avg = inds.length > 0 ? inds.reduce((s, i) => s + Math.min(i.achActual, 100), 0) / inds.length : 0;
       return {
         goal: g.replace(/[①②③④]/g, '').trim(),
         달성률: Math.round(avg * 10) / 10,
@@ -3840,7 +3855,7 @@ const Presentation = makeIcon([["path", {
         const mt = getMonthlyTargets(ind);
         return calcAchievement(data[ind.code]?.actual?.[m], mt[m - 1], ind.direction);
       }).filter(v => v !== null);
-      const avg = vals.length > 0 ? vals.reduce((s, v) => s + Math.min(v, 200), 0) / vals.length : null;
+      const avg = vals.length > 0 ? vals.reduce((s, v) => s + Math.min(v, 100), 0) / vals.length : null;
       return {
         month: `${m}월`,
         평균달성률: avg !== null ? Math.round(avg * 10) / 10 : null,
@@ -5399,7 +5414,7 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       indicatorStatus.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.achActual, 200), 0) / valid.length : 0;
+      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.achActual, 100), 0) / valid.length : 0;
       return {
         counts,
         avg,
@@ -5412,7 +5427,7 @@ const Presentation = makeIcon([["path", {
         const mt = getMonthlyTargets(ind);
         return calcAchievement(data[ind.code]?.actual?.[m], mt[m - 1], ind.direction, ind.achievementBands);
       }).filter(v => v !== null);
-      const avg = vals.length > 0 ? vals.reduce((s, v) => s + Math.min(v, 200), 0) / vals.length : null;
+      const avg = vals.length > 0 ? vals.reduce((s, v) => s + Math.min(v, 100), 0) / vals.length : null;
       return {
         month: `${m}월`,
         평균달성률: avg !== null ? Math.round(avg * 10) / 10 : null,
