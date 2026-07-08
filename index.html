@@ -2764,16 +2764,16 @@ const Presentation = makeIcon([["path", {
         var lastRate = typeof cur.lastYearRate === 'number' ? cur.lastYearRate : 0;
         var diff = Math.round((tPct - lastRate) * 10) / 10;
         var diffUp = diff >= 0;
-        var cardBox = function(label, valueStr, valColor){
-          return /*#__PURE__*/React.createElement("div", { className: "pm-tile px-6 py-5 flex-1 text-center" },
+        var cardBox = function(label, valueStr, valColor, grow, noWrap){
+          return /*#__PURE__*/React.createElement("div", { className: "pm-tile px-6 py-5 text-center " + (grow || 'flex-1') },
             /*#__PURE__*/React.createElement("div", { className: "text-slate-400 text-sm mb-2" }, label),
-            /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl", style: valColor ? { color: valColor } : { color: '#e2e8f0' } }, valueStr)
+            /*#__PURE__*/React.createElement("div", { className: "pm-display text-3xl md:text-4xl " + (noWrap ? 'whitespace-nowrap' : ''), style: valColor ? { color: valColor } : { color: '#e2e8f0' } }, valueStr)
           );
         };
         summaryCard = /*#__PURE__*/React.createElement("div", { className: "flex flex-col md:flex-row gap-4 mb-8" },
-          cardBox("'25년 득점률", lastRate.toFixed(1) + '%', null),
-          cardBox("'26년 예상 득점률", tPct.toFixed(1) + '%', accent),
-          cardBox("전년대비", (diffUp ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(1) + '%p ' + (diffUp ? '상승' : '하락') + ' 예상', diffUp ? '#10b981' : '#f43f5e')
+          cardBox("'25년 득점률", lastRate.toFixed(1) + '%', null, 'flex-1'),
+          cardBox("'26년 예상 득점률", tPct.toFixed(1) + '%', accent, 'flex-1'),
+          cardBox("전년대비", (diffUp ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(1) + '%p ' + (diffUp ? '상승' : '하락') + ' 예상', diffUp ? '#10b981' : '#f43f5e', 'flex-[1.6]', true)
         );
       }
 
