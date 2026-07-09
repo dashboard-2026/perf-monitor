@@ -2117,7 +2117,7 @@ const Presentation = makeIcon([["path", {
         diff
       };
     }), [instData, instInds, refMonth]);
-    const summarize = (arr, scoreBased) => {
+    const summarize = (arr, scoreBased, weighted) => {
       const valid = arr.filter(i => scoreBased ? (i.scoreForecast !== null && i.scoreForecast !== undefined) : i.ach !== null);
       const counts = {
         normal: 0,
@@ -2127,7 +2127,16 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       arr.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(scoreBased ? i.scoreForecast : i.ach, 100), 0) / valid.length : 0;
+      const val = i => Math.min(scoreBased ? i.scoreForecast : i.ach, 100);
+      let avg = 0;
+      if (valid.length > 0) {
+        if (weighted) {
+          const wsum = valid.reduce((s, i) => s + (i.weight || 0), 0);
+          avg = wsum > 0 ? valid.reduce((s, i) => s + (i.weight || 0) * val(i), 0) / wsum : valid.reduce((s, i) => s + val(i), 0) / valid.length;
+        } else {
+          avg = valid.reduce((s, i) => s + val(i), 0) / valid.length;
+        }
+      }
       return {
         counts,
         avg,
@@ -2136,7 +2145,7 @@ const Presentation = makeIcon([["path", {
       };
     };
     const ceoSum = useMemo(() => summarize(ceoStatus, true), [ceoStatus]);
-    const instSum = useMemo(() => summarize(instStatus, true), [instStatus]);
+    const instSum = useMemo(() => summarize(instStatus, true, true), [instStatus]);
 
     // 슬라이드 정의
     const ceoSlides = [{
@@ -5557,7 +5566,8 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       indicatorStatus.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.scoreForecast, 100), 0) / valid.length : 0;
+      const wsum = valid.reduce((s, i) => s + (i.weight || 0), 0);
+      const avg = valid.length === 0 ? 0 : wsum > 0 ? valid.reduce((s, i) => s + (i.weight || 0) * Math.min(i.scoreForecast, 100), 0) / wsum : valid.reduce((s, i) => s + Math.min(i.scoreForecast, 100), 0) / valid.length;
       return {
         counts,
         avg,
@@ -5774,7 +5784,7 @@ const Presentation = makeIcon([["path", {
     }), /*#__PURE__*/React.createElement(KPICard, {
       label: "평균 전망 득점률",
       value: `${summary.avg.toFixed(1)}%`,
-      sub: `${summary.valid}개 입력 기준`,
+      sub: `가중평균 · ${summary.valid}개 기준`,
       color: "blue",
       icon: TrendingUp,
       idx: 0
