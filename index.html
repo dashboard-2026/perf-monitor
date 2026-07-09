@@ -2060,9 +2060,8 @@ const Presentation = makeIcon([["path", {
       const ach = calcAchievement(actual, target, ind.direction, ind.achievementBands);
       const annual = calcAnnualProgress(actual, ind.annualTarget, ind.direction, ind.achievementBands);
       const cmt = ceoData.__comments__?.[ind.code]?.[refMonth] || {};
-      const sfRaw = ceoData[ind.code]?.scoreForecast;
-      const scoreForecast = (sfRaw === undefined || sfRaw === null || sfRaw === '') ? null : parseFloat(sfRaw);
       const valueForecast = latestForecastVal(ceoData[ind.code]?.forecast, refMonth);
+      const scoreForecast = calcAchievement(valueForecast, ind.annualTarget, ind.direction, ind.achievementBands);
       // 전월 대비
       let prevAch = null,
         diff = null;
@@ -3646,9 +3645,8 @@ const Presentation = makeIcon([["path", {
           prevAch = calcAchievement(prevActual, monthlyTargets[refMonth - 2], ind.direction);
           if (achActual !== null && prevAch !== null) diff = achActual - prevAch;
         }
-        const sfRaw = data[ind.code]?.scoreForecast;
-        const scoreForecast = (sfRaw === undefined || sfRaw === null || sfRaw === '') ? null : parseFloat(sfRaw);
         const valueForecast = latestForecastVal(data[ind.code]?.forecast, refMonth);
+        const scoreForecast = calcAchievement(valueForecast, ind.annualTarget, ind.direction);
         return {
           ...ind,
           monthlyTargets,
@@ -4509,16 +4507,6 @@ const Presentation = makeIcon([["path", {
     useEffect(() => setLocalData(data), [data]);
     const ind = indicators.find(i => i.code === selectedCode);
     if (!ind) return null;
-    const getScore = () => {
-      const v = localData[selectedCode]?.scoreForecast;
-      return v === undefined || v === null ? '' : v;
-    };
-    const updateScore = v => {
-      const nd = { ...localData };
-      if (!nd[selectedCode]) nd[selectedCode] = { actual: {}, forecast: {} };
-      if (v === '' || v === null) delete nd[selectedCode].scoreForecast;else nd[selectedCode].scoreForecast = parseFloat(v);
-      setLocalData(nd);
-    };
     const getVF = () => {
       const v = localData[selectedCode]?.forecast?.[refMonth];
       return v === undefined || v === null ? '' : v;
@@ -4700,31 +4688,7 @@ const Presentation = makeIcon([["path", {
       placeholder: "\u2014"
     }), /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-slate-500 whitespace-nowrap"
-    }, ind.unit)), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2"
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-indigo-700 block leading-tight"
-    }, "득점률(전망)"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[10px] text-slate-500 leading-tight"
-    }, "신호등 판정 기준(%)")), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      step: "any",
-      value: getScore(),
-      onChange: e => updateScore(e.target.value),
-      className: "w-20 px-2 py-1.5 border border-indigo-300 rounded text-center text-base font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300",
-      placeholder: "\u2014"
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs text-slate-500"
-    }, "%"), (() => {
-      const sv = getScore();
-      if (sv === '' || sv === null || sv === undefined) return /*#__PURE__*/React.createElement("span", {
-        className: "text-xs text-slate-400 whitespace-nowrap"
-      }, "미입력·N/A");
-      const cc = statusColors[getStatus(parseFloat(sv))];
-      return /*#__PURE__*/React.createElement("span", {
-        className: `inline-block px-2 py-0.5 text-xs font-semibold rounded ${cc.bg} text-white whitespace-nowrap`
-      }, cc.label);
-    })())), /*#__PURE__*/React.createElement("div", {
+    }, ind.unit))), /*#__PURE__*/React.createElement("div", {
       className: "overflow-x-auto"
     }, /*#__PURE__*/React.createElement("table", {
       className: "w-full text-sm"
