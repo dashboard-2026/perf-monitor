@@ -1124,6 +1124,19 @@ const Presentation = makeIcon([["path", {
     return 'alert';
   }
 
+  // 전망치 표시값: 기준월 우선, 비어있으면 그 이전 달 중 가장 최근 입력값
+  function latestForecastVal(fc, refMonth) {
+    if (!fc) return null;
+    for (let m = refMonth; m >= 1; m--) {
+      const v = fc[m];
+      if (v !== undefined && v !== null && v !== '') {
+        const n = parseFloat(v);
+        if (!isNaN(n)) return n;
+      }
+    }
+    return null;
+  }
+
   // ── 종합판정 (달성률 + 외부동향 교차) ──────────────────────
   // 모든 계산은 브라우저 안에서만 수행됨 (실적이 서버·외부로 나가지 않음)
   const SECURED_CODES = ['P-08-1','P-08-2']; // 편성 완료·달성 확정형 지표(안전·보안예산)
@@ -2047,6 +2060,9 @@ const Presentation = makeIcon([["path", {
       const ach = calcAchievement(actual, target, ind.direction, ind.achievementBands);
       const annual = calcAnnualProgress(actual, ind.annualTarget, ind.direction, ind.achievementBands);
       const cmt = ceoData.__comments__?.[ind.code]?.[refMonth] || {};
+      const sfRaw = ceoData[ind.code]?.scoreForecast;
+      const scoreForecast = (sfRaw === undefined || sfRaw === null || sfRaw === '') ? null : parseFloat(sfRaw);
+      const valueForecast = latestForecastVal(ceoData[ind.code]?.forecast, refMonth);
       // 전월 대비
       let prevAch = null,
         diff = null;
@@ -2061,7 +2077,10 @@ const Presentation = makeIcon([["path", {
         currentTarget: target,
         ach,
         annual,
-        status: getStatus(ach),
+        scoreForecast,
+        valueForecast,
+        status: getStatus(scoreForecast),
+        statusMonthly: getStatus(ach),
         cause: cmt.cause,
         action: cmt.action,
         prevAch,
@@ -2117,7 +2136,7 @@ const Presentation = makeIcon([["path", {
         total: arr.length
       };
     };
-    const ceoSum = useMemo(() => summarize(ceoStatus), [ceoStatus]);
+    const ceoSum = useMemo(() => summarize(ceoStatus, true), [ceoStatus]);
     const instSum = useMemo(() => summarize(instStatus, true), [instStatus]);
 
     // 슬라이드 정의
@@ -2449,7 +2468,7 @@ const Presentation = makeIcon([["path", {
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-slate-500 text-sm mb-3"
-    }, cur.kind === 'inst' ? "평균 전망 득점률" : "\uD3C9\uADE0 \uB2EC\uC131\uB960"), /*#__PURE__*/React.createElement("div", {
+    }, "평균 전망 득점률"), /*#__PURE__*/React.createElement("div", {
       className: "text-4xl md:text-5xl pm-display"
     }, /*#__PURE__*/React.createElement(CountUp, {
       value: cur.sum.avg,
@@ -2648,7 +2667,7 @@ const Presentation = makeIcon([["path", {
         className: "text-sm font-normal text-slate-500 ml-2"
       }, "\xB7 ", i.dept)), /*#__PURE__*/React.createElement("span", {
         className: "text-2xl md:text-3xl pm-display text-rose-400"
-      }, i.ach?.toFixed(0), "%")), (i.cause || i.action) && /*#__PURE__*/React.createElement("div", {
+      }, i.scoreForecast != null ? i.scoreForecast.toFixed(0) : '—', "%")), (i.cause || i.action) && /*#__PURE__*/React.createElement("div", {
         className: "grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-sm md:text-base"
       }, i.cause && /*#__PURE__*/React.createElement("div", {
         className: "bg-black/20 rounded-lg px-3 py-2"
@@ -2679,7 +2698,7 @@ const Presentation = makeIcon([["path", {
         className: "text-sm font-normal text-slate-500 ml-2"
       }, "\xB7 ", i.dept)), /*#__PURE__*/React.createElement("span", {
         className: "text-2xl md:text-3xl pm-display text-amber-400"
-      }, i.ach?.toFixed(0), "%")), (i.cause || i.action) && /*#__PURE__*/React.createElement("div", {
+      }, i.scoreForecast != null ? i.scoreForecast.toFixed(0) : '—', "%")), (i.cause || i.action) && /*#__PURE__*/React.createElement("div", {
         className: "grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-sm md:text-base"
       }, i.cause && /*#__PURE__*/React.createElement("div", {
         className: "bg-black/20 rounded-lg px-3 py-2"
@@ -3627,6 +3646,9 @@ const Presentation = makeIcon([["path", {
           prevAch = calcAchievement(prevActual, monthlyTargets[refMonth - 2], ind.direction);
           if (achActual !== null && prevAch !== null) diff = achActual - prevAch;
         }
+        const sfRaw = data[ind.code]?.scoreForecast;
+        const scoreForecast = (sfRaw === undefined || sfRaw === null || sfRaw === '') ? null : parseFloat(sfRaw);
+        const valueForecast = latestForecastVal(data[ind.code]?.forecast, refMonth);
         return {
           ...ind,
           monthlyTargets,
@@ -3635,7 +3657,10 @@ const Presentation = makeIcon([["path", {
           currentForecast: forecast,
           achActual,
           achForecast,
-          status: getStatus(achActual),
+          scoreForecast,
+          valueForecast,
+          status: getStatus(scoreForecast),
+          statusMonthly: getStatus(achActual),
           statusForecast: getStatus(achForecast),
           prevAch,
           diff
@@ -3643,7 +3668,7 @@ const Presentation = makeIcon([["path", {
       });
     }, [indicators, data, refMonth]);
     const summary = useMemo(() => {
-      const valid = indicatorStatus.filter(i => i.achActual !== null);
+      const valid = indicatorStatus.filter(i => i.scoreForecast !== null && i.scoreForecast !== undefined);
       const counts = {
         normal: 0,
         caution: 0,
@@ -3652,7 +3677,7 @@ const Presentation = makeIcon([["path", {
         na: 0
       };
       indicatorStatus.forEach(i => counts[i.status]++);
-      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.achActual, 100), 0) / valid.length : 0;
+      const avg = valid.length > 0 ? valid.reduce((s, i) => s + Math.min(i.scoreForecast, 100), 0) / valid.length : 0;
       return {
         counts,
         avg,
@@ -3944,9 +3969,9 @@ const Presentation = makeIcon([["path", {
       color: "slate",
       icon: Activity
     }), /*#__PURE__*/React.createElement(KPICard, {
-      label: "\uD3C9\uADE0 \uB2EC\uC131\uB960",
+      label: "평균 전망 득점률",
       value: `${summary.avg.toFixed(1)}%`,
-      sub: `${summary.valid}개 지표 기준`,
+      sub: `${summary.valid}개 입력 기준`,
       color: "blue",
       icon: TrendingUp,
       idx: 0
@@ -3988,7 +4013,7 @@ const Presentation = makeIcon([["path", {
       className: "w-5 h-5 text-rose-600"
     }), /*#__PURE__*/React.createElement("h3", {
       className: "font-semibold text-rose-900"
-    }, "\uD83D\uDEA8 \uACBD\uBCF4 \u2014 ", alerts.length, "\uAC74 (\uB2EC\uC131\uB960 80% \uBBF8\uB9CC)")), /*#__PURE__*/React.createElement("div", {
+    }, "\uD83D\uDEA8 \uACBD\uBCF4 \u2014 ", alerts.length, "\uAC74 (전망 득점률 80% \uBBF8\uB9CC)")), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"
     }, alerts.map(a => /*#__PURE__*/React.createElement("div", {
       key: a.code,
@@ -3998,7 +4023,7 @@ const Presentation = makeIcon([["path", {
       className: "font-medium"
     }, "[", a.code, "] ", a.name), /*#__PURE__*/React.createElement("span", {
       className: "text-rose-600 font-bold"
-    }, a.achActual?.toFixed(1), "%"))))), watches.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, a.scoreForecast?.toFixed(1), "%"))))), watches.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "bg-amber-50 border-2 border-amber-300 rounded-lg p-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-2 mb-3"
@@ -4006,7 +4031,7 @@ const Presentation = makeIcon([["path", {
       className: "w-5 h-5 text-amber-600"
     }), /*#__PURE__*/React.createElement("h3", {
       className: "font-semibold text-amber-900"
-    }, "\u26A0\uFE0F \uAD00\uB9AC \u2014 ", watches.length, "\uAC74 (\uB2EC\uC131\uB960 80~89%)")), /*#__PURE__*/React.createElement("div", {
+    }, "\u26A0\uFE0F \uAD00\uB9AC \u2014 ", watches.length, "\uAC74 (전망 득점률 80~89%)")), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"
     }, watches.map(a => /*#__PURE__*/React.createElement("div", {
       key: a.code,
@@ -4016,7 +4041,7 @@ const Presentation = makeIcon([["path", {
       className: "font-medium"
     }, "[", a.code, "] ", a.name), /*#__PURE__*/React.createElement("span", {
       className: "text-amber-700 font-bold"
-    }, a.achActual?.toFixed(1), "%")))))), /*#__PURE__*/React.createElement("div", {
+    }, a.scoreForecast?.toFixed(1), "%")))))), /*#__PURE__*/React.createElement("div", {
       className: "bg-white border rounded-lg p-5 print-sig-panel"
     }, /*#__PURE__*/React.createElement("h3", {
       className: "font-semibold text-slate-800 mb-4 flex items-center gap-2"
@@ -4057,24 +4082,32 @@ const Presentation = makeIcon([["path", {
         }), /*#__PURE__*/React.createElement("span", {
           className: "text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-medium"
         }, i.code)), /*#__PURE__*/React.createElement(MiniDonut, {
-          value: annualPct,
+          value: i.scoreForecast,
           color: donutColor,
           size: 48
         })), /*#__PURE__*/React.createElement("div", {
           className: "text-sm font-bold text-slate-800 line-clamp-2 h-8 mb-1"
         }, i.name), /*#__PURE__*/React.createElement("div", {
-          className: "flex items-end justify-between border-t border-slate-200/70 pt-1.5"
-        }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-          className: "text-[10px] text-slate-500 leading-tight"
-        }, "\uC6D4\uBCC4 \uD398\uC774\uC2A4"), /*#__PURE__*/React.createElement("div", {
-          className: `text-sm font-bold ${c.text} leading-tight`
-        }, i.achActual === null ? '—' : `${i.achActual.toFixed(0)}%`)), /*#__PURE__*/React.createElement("div", {
-          className: "text-right"
+          className: "border-t border-slate-200/70 pt-1.5 space-y-0.5"
         }, /*#__PURE__*/React.createElement("div", {
-          className: "text-[10px] text-slate-500 leading-tight"
-        }, "\uC5F0 \uC9C4\uCC99"), /*#__PURE__*/React.createElement("div", {
-          className: "text-sm font-bold text-slate-700 leading-tight"
-        }, annualPct === null ? '—' : `${annualPct.toFixed(0)}%`))), (() => {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "월별 페이스"), /*#__PURE__*/React.createElement("span", {
+          className: `text-xs font-bold ${statusColors[i.statusMonthly || i.status].text}`
+        }, i.achActual === null ? '—' : `${i.achActual.toFixed(0)}%`)), /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "연간목표"), /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] font-medium text-slate-600 tabular-nums"
+        }, i.annualTarget == null ? '—' : `${(Math.round(i.annualTarget * 100) / 100).toLocaleString()}${i.unit}`)), /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "전망치"), /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] font-medium text-sky-700 tabular-nums"
+        }, i.valueForecast === null || i.valueForecast === undefined ? '—' : `${i.valueForecast.toLocaleString()}${i.unit}`))), (() => {
           // 신호등 카드에는 확정형 지표(안전·보안경영)만 '편성 완료·달성 확정' 체크 표시
           if (SECURED_CODES.indexOf(i.code) === -1) return null;
           return /*#__PURE__*/React.createElement("div", {
@@ -4100,26 +4133,30 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement("thead", {
       className: "bg-slate-50 border-b text-xs"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-left"
+      className: "px-2 py-2 text-left w-14 whitespace-nowrap"
     }, "\uCF54\uB4DC"), /*#__PURE__*/React.createElement("th", {
       className: "px-3 py-2 text-left"
     }, "\uC9C0\uD45C\uBA85"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-left"
+      className: "px-2 py-2 text-left text-xs whitespace-nowrap"
     }, "\uC131\uACFC\uBAA9\uD45C"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, refMonth, "\uC6D4 \uB204\uC801\uBAA9\uD45C"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, "\uC2E4\uC801"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, "\uB2EC\uC131\uB960(\uC2E4\uC801)"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
+      className: "px-2 py-2 text-center whitespace-nowrap"
     }, "\uC804\uC6D4\uB300\uBE44"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
-    }, "\uC804\uB9DD"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
-    }, "\uB2EC\uC131\uB960(\uC804\uB9DD,\uC5F0\uBAA9\uD45C)"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
-    }, "\uC0C1\uD0DC"))), /*#__PURE__*/React.createElement("tbody", null, indicatorStatus.map(i => {
+      className: "px-2 py-2 text-center whitespace-nowrap"
+    }, "월별실적"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-right whitespace-nowrap bg-sky-50/50"
+    }, "연간목표"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-right whitespace-nowrap bg-sky-50/50"
+    }, "실적(전망)"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-right whitespace-nowrap bg-indigo-50/50"
+    }, "득점률(전망)"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-center whitespace-nowrap"
+    }, "연말전망"))), /*#__PURE__*/React.createElement("tbody", null, indicatorStatus.map(i => {
       const c = statusColors[i.status];
       const isH = highlightedCode === i.code;
       const isExp = expandedRow === i.code;
@@ -4149,7 +4186,7 @@ const Presentation = makeIcon([["path", {
       }, i.currentTarget === null ? '—' : Math.round(i.currentTarget * 100) / 100, " ", i.unit), /*#__PURE__*/React.createElement("td", {
         className: "px-3 py-2 text-right tabular-nums"
       }, i.currentActual === undefined || i.currentActual === '' ? '—' : `${parseFloat(i.currentActual).toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
-        className: `px-3 py-2 text-right font-bold tabular-nums ${c.text}`
+        className: `px-3 py-2 text-right font-bold tabular-nums ${statusColors[i.statusMonthly].text}`
       }, i.achActual === null ? '—' : `${i.achActual.toFixed(1)}%`), /*#__PURE__*/React.createElement("td", {
         className: "px-3 py-2 text-center tabular-nums"
       }, i.diff === null || i.diff === undefined ? /*#__PURE__*/React.createElement("span", {
@@ -4157,17 +4194,23 @@ const Presentation = makeIcon([["path", {
       }, "\u2014") : /*#__PURE__*/React.createElement("span", {
         className: `text-xs font-medium ${i.diff > 0 ? 'text-emerald-600' : i.diff < 0 ? 'text-rose-600' : 'text-slate-400'}`
       }, i.diff > 0 ? '▲' : i.diff < 0 ? '▼' : '—', Math.abs(i.diff).toFixed(1), "%p")), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-right tabular-nums text-slate-500"
-      }, i.currentForecast === undefined || i.currentForecast === '' ? '—' : `${parseFloat(i.currentForecast).toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-right text-slate-600 tabular-nums"
-      }, i.achForecast === null ? '—' : `${i.achForecast.toFixed(1)}%`), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-center"
+        className: "px-2 py-2 text-center"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: `inline-block px-2 py-0.5 text-xs rounded ${statusColors[i.statusMonthly].bg} text-white`
+      }, statusColors[i.statusMonthly].label)), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-2 text-right tabular-nums text-slate-600 bg-sky-50/40"
+      }, i.annualTarget == null ? '—' : `${(Math.round(i.annualTarget * 100) / 100).toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-2 text-right tabular-nums font-medium text-sky-700 bg-sky-50/40"
+      }, i.valueForecast === null || i.valueForecast === undefined ? '—' : `${i.valueForecast.toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
+        className: `px-2 py-2 text-right tabular-nums font-bold bg-indigo-50/40 ${statusColors[i.status].text}`
+      }, i.scoreForecast === null || i.scoreForecast === undefined ? '—' : `${i.scoreForecast.toFixed(1)}%`), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-2 text-center"
       }, /*#__PURE__*/React.createElement("span", {
         className: `inline-block px-2 py-0.5 text-xs rounded ${c.bg} text-white`
       }, c.label))), isExp && /*#__PURE__*/React.createElement("tr", {
         className: "bg-slate-50 border-b print-exp-row"
       }, /*#__PURE__*/React.createElement("td", {
-        colSpan: 10,
+        colSpan: 12,
         className: "px-4 py-4 hug-expand"
       }, i.definition && /*#__PURE__*/React.createElement("p", {
         className: "text-sm text-slate-600 leading-relaxed mb-3 pb-3 border-b border-slate-200"
@@ -4302,7 +4345,7 @@ const Presentation = makeIcon([["path", {
       }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
         className: "text-[10px] text-slate-500"
       }, "\uB2EC\uC131\uB960(\uC2E4\uC801)"), /*#__PURE__*/React.createElement("div", {
-        className: `text-xl font-bold ${c.text}`
+        className: `text-xl font-bold ${statusColors[i.statusMonthly].text}`
       }, i.achActual === null ? '—' : `${i.achActual.toFixed(1)}%`)), /*#__PURE__*/React.createElement("div", {
         className: "text-right"
       }, /*#__PURE__*/React.createElement("div", {
@@ -4466,6 +4509,27 @@ const Presentation = makeIcon([["path", {
     useEffect(() => setLocalData(data), [data]);
     const ind = indicators.find(i => i.code === selectedCode);
     if (!ind) return null;
+    const getScore = () => {
+      const v = localData[selectedCode]?.scoreForecast;
+      return v === undefined || v === null ? '' : v;
+    };
+    const updateScore = v => {
+      const nd = { ...localData };
+      if (!nd[selectedCode]) nd[selectedCode] = { actual: {}, forecast: {} };
+      if (v === '' || v === null) delete nd[selectedCode].scoreForecast;else nd[selectedCode].scoreForecast = parseFloat(v);
+      setLocalData(nd);
+    };
+    const getVF = () => {
+      const v = localData[selectedCode]?.forecast?.[refMonth];
+      return v === undefined || v === null ? '' : v;
+    };
+    const updateVF = v => {
+      const nd = { ...localData };
+      if (!nd[selectedCode]) nd[selectedCode] = { actual: {}, forecast: {} };
+      if (!nd[selectedCode].forecast) nd[selectedCode].forecast = {};
+      if (v === '' || v === null) delete nd[selectedCode].forecast[refMonth];else nd[selectedCode].forecast[refMonth] = parseFloat(v);
+      setLocalData(nd);
+    };
     const monthlyTargets = getMonthlyTargets(ind);
     const updateValue = (month, value) => {
       const nd = {
@@ -4620,6 +4684,47 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement(Download, {
       className: "w-3.5 h-3.5"
     }), "\uC9C1\uC804 \uB2EC \uBCF5\uC0AC"))), /*#__PURE__*/React.createElement("div", {
+      className: "mb-4 flex flex-wrap items-stretch gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-sky-700 block leading-tight"
+    }, "실적치(전망) · ", refMonth, "월"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-slate-500 leading-tight"
+    }, "기준월 전망 실적 · 월별로 기록됨")), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      step: "any",
+      value: getVF(),
+      onChange: e => updateVF(e.target.value),
+      className: "w-24 px-2 py-1.5 border border-sky-300 rounded text-center text-base font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-sky-300",
+      placeholder: "\u2014"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-500 whitespace-nowrap"
+    }, ind.unit)), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-indigo-700 block leading-tight"
+    }, "득점률(전망)"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-slate-500 leading-tight"
+    }, "신호등 판정 기준(%)")), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      step: "any",
+      value: getScore(),
+      onChange: e => updateScore(e.target.value),
+      className: "w-20 px-2 py-1.5 border border-indigo-300 rounded text-center text-base font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300",
+      placeholder: "\u2014"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-500"
+    }, "%"), (() => {
+      const sv = getScore();
+      if (sv === '' || sv === null || sv === undefined) return /*#__PURE__*/React.createElement("span", {
+        className: "text-xs text-slate-400 whitespace-nowrap"
+      }, "미입력·N/A");
+      const cc = statusColors[getStatus(parseFloat(sv))];
+      return /*#__PURE__*/React.createElement("span", {
+        className: `inline-block px-2 py-0.5 text-xs font-semibold rounded ${cc.bg} text-white whitespace-nowrap`
+      }, cc.label);
+    })())), /*#__PURE__*/React.createElement("div", {
       className: "overflow-x-auto"
     }, /*#__PURE__*/React.createElement("table", {
       className: "w-full text-sm"
@@ -5459,6 +5564,7 @@ const Presentation = makeIcon([["path", {
         }
         const sfRaw = data[ind.code]?.scoreForecast;
         const scoreForecast = (sfRaw === undefined || sfRaw === null || sfRaw === '') ? null : parseFloat(sfRaw);
+        const valueForecast = latestForecastVal(data[ind.code]?.forecast, refMonth);
         return {
           ...ind,
           monthlyTargets,
@@ -5468,6 +5574,7 @@ const Presentation = makeIcon([["path", {
           achActual,
           achForecast,
           scoreForecast,
+          valueForecast,
           status: getStatus(scoreForecast),
           statusMonthly: getStatus(achActual),
           statusForecast: getStatus(achForecast),
@@ -5823,18 +5930,28 @@ const Presentation = makeIcon([["path", {
         })), /*#__PURE__*/React.createElement("div", {
           className: "text-sm font-bold text-slate-800 line-clamp-2 h-8 mb-1"
         }, i.name), /*#__PURE__*/React.createElement("div", {
-          className: "flex items-end justify-between border-t border-slate-200/70 pt-1.5"
-        }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-          className: "text-[10px] text-slate-500 leading-tight"
-        }, "\uC6D4\uBCC4 \uD398\uC774\uC2A4"), /*#__PURE__*/React.createElement("div", {
-          className: `text-sm font-bold ${statusColors[i.statusMonthly || i.status].text} leading-tight`
-        }, i.achActual === null ? '—' : `${i.achActual.toFixed(0)}%`)), /*#__PURE__*/React.createElement("div", {
-          className: "text-right"
+          className: "text-[10px] text-slate-500 mb-1 leading-tight"
+        }, "가중치 ", i.weight, "점"), /*#__PURE__*/React.createElement("div", {
+          className: "border-t border-slate-200/70 pt-1.5 space-y-0.5"
         }, /*#__PURE__*/React.createElement("div", {
-          className: "text-[10px] text-slate-500 leading-tight"
-        }, i.weight, "\uC810"), /*#__PURE__*/React.createElement("div", {
-          className: "text-sm font-bold text-slate-700 leading-tight"
-        }, annualPct === null ? '—' : `${annualPct.toFixed(0)}%`))), (() => {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "월별 페이스"), /*#__PURE__*/React.createElement("span", {
+          className: `text-xs font-bold ${statusColors[i.statusMonthly || i.status].text}`
+        }, i.achActual === null ? '—' : `${i.achActual.toFixed(0)}%`)), /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "연간목표"), /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] font-medium text-slate-600 tabular-nums"
+        }, i.annualTarget == null ? '—' : `${(Math.round(i.annualTarget * 100) / 100).toLocaleString()}${i.unit}`)), /*#__PURE__*/React.createElement("div", {
+          className: "flex items-center justify-between leading-tight"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] text-slate-500"
+        }, "전망치"), /*#__PURE__*/React.createElement("span", {
+          className: "text-[10px] font-medium text-sky-700 tabular-nums"
+        }, i.valueForecast === null || i.valueForecast === undefined ? '—' : `${i.valueForecast.toLocaleString()}${i.unit}`))), (() => {
           // 신호등 카드에는 확정형 지표(안전·보안경영)만 '편성 완료·달성 확정' 체크 표시
           if (SECURED_CODES.indexOf(i.code) === -1) return null;
           return /*#__PURE__*/React.createElement("div", {
@@ -5860,27 +5977,31 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement("thead", {
       className: "bg-slate-50 border-b text-xs"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-left"
+      className: "px-2 py-2 text-left w-14 whitespace-nowrap"
     }, "\uCF54\uB4DC"), /*#__PURE__*/React.createElement("th", {
       className: "px-3 py-2 text-left"
     }, "\uC9C0\uD45C\uBA85"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-left"
+      className: "px-2 py-2 text-left w-16 text-xs whitespace-nowrap"
     }, "\uC0AC\uC5C5"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
+      className: "px-1 py-2 text-center w-12 whitespace-nowrap"
     }, "\uAC00\uC911\uCE58"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, refMonth, "\uC6D4 \uBAA9\uD45C"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, "\uC2E4\uC801"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
+      className: "px-2 py-2 text-right whitespace-nowrap"
     }, "\uB2EC\uC131\uB960"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
+      className: "px-2 py-2 text-center whitespace-nowrap"
     }, "\uC804\uC6D4\uB300\uBE44"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-right"
-    }, "\uC804\uB9DD"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
+      className: "px-2 py-2 text-center whitespace-nowrap"
     }, "월별실적"), /*#__PURE__*/React.createElement("th", {
-      className: "px-3 py-2 text-center"
+      className: "px-2 py-2 text-right whitespace-nowrap bg-sky-50/50"
+    }, "연간목표"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-right whitespace-nowrap bg-sky-50/50"
+    }, "실적(전망)"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-right whitespace-nowrap bg-indigo-50/50"
+    }, "득점률(전망)"), /*#__PURE__*/React.createElement("th", {
+      className: "px-2 py-2 text-center whitespace-nowrap"
     }, "연말전망"))), /*#__PURE__*/React.createElement("tbody", null, indicatorStatus.map(i => {
       const c = statusColors[i.status];
       const isH = highlightedCode === i.code;
@@ -5923,19 +6044,23 @@ const Presentation = makeIcon([["path", {
       }, "\u2014") : /*#__PURE__*/React.createElement("span", {
         className: `text-xs font-medium ${i.diff > 0 ? 'text-emerald-600' : i.diff < 0 ? 'text-rose-600' : 'text-slate-400'}`
       }, i.diff > 0 ? '▲' : i.diff < 0 ? '▼' : '—', Math.abs(i.diff).toFixed(1), "%p")), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-right text-slate-500 tabular-nums"
-      }, i.currentForecast === undefined || i.currentForecast === '' ? '—' : `${parseFloat(i.currentForecast).toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-center"
+        className: "px-2 py-2 text-center"
       }, /*#__PURE__*/React.createElement("span", {
         className: `inline-block px-2 py-0.5 text-xs rounded ${statusColors[i.statusMonthly].bg} text-white`
       }, statusColors[i.statusMonthly].label)), /*#__PURE__*/React.createElement("td", {
-        className: "px-3 py-2 text-center"
+        className: "px-2 py-2 text-right tabular-nums text-slate-600 bg-sky-50/40"
+      }, i.annualTarget == null ? '—' : `${(Math.round(i.annualTarget * 100) / 100).toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-2 text-right tabular-nums font-medium text-sky-700 bg-sky-50/40"
+      }, i.valueForecast === null || i.valueForecast === undefined ? '—' : `${i.valueForecast.toLocaleString()} ${i.unit}`), /*#__PURE__*/React.createElement("td", {
+        className: `px-2 py-2 text-right tabular-nums font-bold bg-indigo-50/40 ${statusColors[i.status].text}`
+      }, i.scoreForecast === null || i.scoreForecast === undefined ? '—' : `${i.scoreForecast.toFixed(1)}%`), /*#__PURE__*/React.createElement("td", {
+        className: "px-2 py-2 text-center"
       }, /*#__PURE__*/React.createElement("span", {
         className: `inline-block px-2 py-0.5 text-xs rounded ${c.bg} text-white`
       }, c.label))), isExp && /*#__PURE__*/React.createElement("tr", {
         className: "bg-slate-50 border-b print-exp-row"
       }, /*#__PURE__*/React.createElement("td", {
-        colSpan: 11,
+        colSpan: 13,
         className: "px-4 py-4 hug-expand"
       }, i.definition && /*#__PURE__*/React.createElement("p", {
         className: "text-sm text-slate-600 leading-relaxed mb-3 pb-3 border-b border-slate-200"
@@ -6223,6 +6348,17 @@ const Presentation = makeIcon([["path", {
       if (v === '' || v === null) delete nd[selectedCode].scoreForecast;else nd[selectedCode].scoreForecast = parseFloat(v);
       setLocalData(nd);
     };
+    const getVF = () => {
+      const v = localData[selectedCode]?.forecast?.[refMonth];
+      return v === undefined || v === null ? '' : v;
+    };
+    const updateVF = v => {
+      const nd = { ...localData };
+      if (!nd[selectedCode]) nd[selectedCode] = { actual: {}, forecast: {} };
+      if (!nd[selectedCode].forecast) nd[selectedCode].forecast = {};
+      if (v === '' || v === null) delete nd[selectedCode].forecast[refMonth];else nd[selectedCode].forecast[refMonth] = parseFloat(v);
+      setLocalData(nd);
+    };
     const monthlyTargets = getMonthlyTargets(ind);
     const updateValue = (m, v) => {
       const nd = {
@@ -6334,32 +6470,47 @@ const Presentation = makeIcon([["path", {
     }, /*#__PURE__*/React.createElement(Download, {
       className: "w-3.5 h-3.5"
     }), "\uC9C1\uC804 \uB2EC \uBCF5\uC0AC"))), /*#__PURE__*/React.createElement("div", {
-      className: "mb-4 flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3"
+      className: "mb-4 flex flex-wrap items-stretch gap-3"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "flex-1 min-w-[180px]"
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "text-xs font-semibold text-indigo-700 block mb-0.5"
-    }, "득점률(전망) \u2014 신호등 판정 기준"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] text-slate-500"
-    }, "연말 예상 득점률(%)을 직접 입력 · 월과 무관한 단일 값")), /*#__PURE__*/React.createElement("input", {
+      className: "flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-sky-700 block leading-tight"
+    }, "실적치(전망) · ", refMonth, "월"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-slate-500 leading-tight"
+    }, "기준월 전망 실적 · 월별로 기록됨")), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      step: "any",
+      value: getVF(),
+      onChange: e => updateVF(e.target.value),
+      className: "w-24 px-2 py-1.5 border border-sky-300 rounded text-center text-base font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-sky-300",
+      placeholder: "\u2014"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-slate-500 whitespace-nowrap"
+    }, ind.unit)), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "text-xs font-semibold text-indigo-700 block leading-tight"
+    }, "득점률(전망)"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-slate-500 leading-tight"
+    }, "신호등 판정 기준(%)")), /*#__PURE__*/React.createElement("input", {
       type: "number",
       step: "any",
       value: getScore(),
       onChange: e => updateScore(e.target.value),
-      className: "w-28 px-3 py-2 border border-indigo-300 rounded text-center text-lg font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300",
+      className: "w-20 px-2 py-1.5 border border-indigo-300 rounded text-center text-base font-bold tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300",
       placeholder: "\u2014"
     }), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm text-slate-500 -ml-1"
+      className: "text-xs text-slate-500"
     }, "%"), (() => {
       const sv = getScore();
       if (sv === '' || sv === null || sv === undefined) return /*#__PURE__*/React.createElement("span", {
-        className: "text-xs text-slate-400"
-      }, "미입력 · N/A");
+        className: "text-xs text-slate-400 whitespace-nowrap"
+      }, "미입력·N/A");
       const cc = statusColors[getStatus(parseFloat(sv))];
       return /*#__PURE__*/React.createElement("span", {
-        className: `inline-block px-2.5 py-1 text-xs font-semibold rounded ${cc.bg} text-white`
+        className: `inline-block px-2 py-0.5 text-xs font-semibold rounded ${cc.bg} text-white whitespace-nowrap`
       }, cc.label);
-    })()), /*#__PURE__*/React.createElement("div", {
+    })())), /*#__PURE__*/React.createElement("div", {
       className: "overflow-x-auto"
     }, /*#__PURE__*/React.createElement("table", {
       className: "w-full text-sm"
@@ -6919,6 +7070,7 @@ const Presentation = makeIcon([["path", {
   const root = ReactDOM.createRoot(rootEl);
   root.render(React.createElement(App));
 })();
+
 </script>
 </body>
 </html>
