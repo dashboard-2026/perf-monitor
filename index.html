@@ -581,21 +581,40 @@ const Presentation = makeIcon([["path", {
     if (key.indexOf('market:') === 0) return 'market_stats';
     return key.indexOf(':meta:') !== -1 ? 'perf_meta' : 'perf_data';
   }
+  // data-api 엔드포인트(빌드 시 치환). 미치환이면 REST 폴백 없이 로컬 모드.
+  const DATA_API = 'https://iswrrkelwqrdqnuhhaih.supabase.co/functions/v1/data-api';
+  const DATA_API_ENABLED = SB_ENABLED && DATA_API.indexOf('__') === -1;
+  function getAuthToken() {
+    try { return sessionStorage.getItem('hug_token') || ''; } catch (e) { return ''; }
+  }
+  async function dataApiCall(payload) {
+    const res = await fetch(DATA_API, {
+      method: 'POST',
+      headers: { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.status === 401) {
+      // 토큰 만료/무효 → 재로그인 유도
+      try { sessionStorage.removeItem('hug_auth'); sessionStorage.removeItem('hug_token'); } catch (e) {}
+      const err = new Error('unauthorized'); err.code = 401; throw err;
+    }
+    if (!res.ok) { const e = new Error('request failed'); e.code = res.status; throw e; }
+    return res.json();
+  }
   const appStorage = {
     async get(key) {
-      if (SB_ENABLED) {
+      if (DATA_API_ENABLED) {
         try {
-          const tbl = sbTable(key);
-          const url = `${SB_URL}/rest/v1/${tbl}?id=eq.${encodeURIComponent(key)}&select=payload`;
-          const res = await fetch(url, { headers: { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON } });
-          if (!res.ok) return null;
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].payload != null) {
-            const p = rows[0].payload;
+          const data = await dataApiCall({ action: 'get', key, token: getAuthToken() });
+          if (data && data.value != null) {
+            const p = data.value;
             return { value: typeof p === 'string' ? p : JSON.stringify(p) };
           }
           return null;
-        } catch (e) { return null; }
+        } catch (e) {
+          if (e && e.code === 401) { alert('로그인이 만료되었습니다. 새로고침 후 다시 로그인해주세요.'); }
+          return null;
+        }
       }
       try {
         const v = localStorage.getItem(STORAGE_PREFIX + key);
@@ -603,29 +622,15 @@ const Presentation = makeIcon([["path", {
       } catch (e) { return null; }
     },
     async set(key, value) {
-      if (SB_ENABLED) {
+      if (DATA_API_ENABLED) {
         try {
-          const tbl = sbTable(key);
-          const url = `${SB_URL}/rest/v1/${tbl}`;
-          const body = JSON.stringify({ id: key, payload: JSON.parse(value), updated_at: new Date().toISOString() });
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              apikey: SB_ANON,
-              Authorization: 'Bearer ' + SB_ANON,
-              'Content-Type': 'application/json',
-              Prefer: 'resolution=merge-duplicates'
-            },
-            body
-          });
-          if (!res.ok) {
-            const t = await res.text();
-            alert('서버 저장 실패: ' + res.status + ' ' + t.slice(0, 120));
-            return null;
-          }
-          return { value };
+          const data = await dataApiCall({ action: 'set', key, value, token: getAuthToken() });
+          if (data && data.ok) return { value };
+          alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          return null;
         } catch (e) {
-          alert('서버 저장 중 오류: ' + (e && e.message ? e.message : e));
+          if (e && e.code === 401) alert('로그인이 만료되었습니다. 새로고침 후 다시 로그인해주세요.');
+          else alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
           return null;
         }
       }
@@ -1835,6 +1840,7 @@ const Presentation = makeIcon([["path", {
         const result = await res.json();
         if (result.valid) {
           sessionStorage.setItem('hug_auth', '1');
+          if (result.token) sessionStorage.setItem('hug_token', result.token);
           sessionStorage.setItem('hug_role', result.role || 'viewer');
           sessionStorage.setItem('hug_user', username.trim());
           onUnlock();
