@@ -603,6 +603,14 @@ const Presentation = makeIcon([["path", {
   // data-api 엔드포인트(빌드 시 치환). 미치환이면 REST 폴백 없이 로컬 모드.
   const DATA_API = 'https://iswrrkelwqrdqnuhhaih.supabase.co/functions/v1/data-api';
   const DATA_API_ENABLED = SB_ENABLED && DATA_API.indexOf('__') === -1;
+  let sessionExpiredHandled = false;
+  function handleSessionExpired() {
+    if (sessionExpiredHandled) return; // 이미 처리 중이면 추가 알림 없이 무시(중복 팝업 방지)
+    sessionExpiredHandled = true;
+    try { sessionStorage.removeItem('hug_auth'); sessionStorage.removeItem('hug_token'); } catch (e) {}
+    alert('로그인이 만료되었습니다. 다시 로그인해주세요.');
+    location.href = 'login.html';
+  }
   function getAuthToken() {
     try { return sessionStorage.getItem('hug_token') || ''; } catch (e) { return ''; }
   }
@@ -631,7 +639,7 @@ const Presentation = makeIcon([["path", {
           }
           return null;
         } catch (e) {
-          if (e && e.code === 401) { alert('로그인이 만료되었습니다. 새로고침 후 다시 로그인해주세요.'); }
+          if (e && e.code === 401) { handleSessionExpired(); }
           return null;
         }
       }
@@ -648,7 +656,7 @@ const Presentation = makeIcon([["path", {
           alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
           return null;
         } catch (e) {
-          if (e && e.code === 401) alert('로그인이 만료되었습니다. 새로고침 후 다시 로그인해주세요.');
+          if (e && e.code === 401) handleSessionExpired();
           else alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
           return null;
         }
