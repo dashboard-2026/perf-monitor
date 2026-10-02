@@ -847,8 +847,215 @@ const Presentation = makeIcon([["path", {
     );
   }
 
+  // ─── 대외동향 기간별 추이 (주간 스냅샷 누적분 조회) ─────────────────
+  const ENV_SNAP_INDEX_KEY = 'sys:env:_snapshots';
+  const MARKET_SNAP_INDEX_KEY = 'market:_snapshots';
+  function envTrendTone(a) {
+    if (!a) return null;
+    const neg = (a.factors||[]).filter(f=>f.impact==='negative').length;
+    const pos = (a.factors||[]).filter(f=>f.impact==='positive').length;
+    return neg > pos ? 'risk' : pos > neg ? 'good' : 'neutral';
+  }
+  async function loadKeysLimited(keys, limit) {
+    const out = {};
+    let idx = 0;
+    const worker = async () => {
+      while (idx < keys.length) {
+        const k = keys[idx++];
+        try {
+          const r = await appStorage.get(k, true);
+          if (r?.value) out[k] = JSON.parse(r.value);
+        } catch(e) {}
+      }
+    };
+    await Promise.all(Array.from({length: Math.min(limit, keys.length)}, worker));
+    return out;
+  }
+  const MARKET_TREND_NAMES = { base_rate:'기준금리', cd_rate:'CD금리(91일)', mortgage_rate:'주택담보대출 금리', jeonse_loan:'전세자금대출 금리', sale_index:'매매가격지수(전국)', jeonse_index:'전세가격지수(전국)', housing_permit:'주택건설 인허가실적', unsold_housing:'미분양현황' };
+  function fmtMarketVal(s) {
+    if (!s || s.value == null) return '-';
+    if (s.source === 'ecos') return s.value + '%';
+    if (s.source === 'kosis') return s.value.toLocaleString('ko-KR') + (s.unit || '');
+    return String(Math.round(s.value * 1000) / 1000);
+  }
+
+  function EnvTrendView({ ws, targetCodes, indByCode }) {
+    const [dates, setDates] = React.useState(null);
+    const [mDates, setMDates] = React.useState([]);
+    const [from, setFrom] = React.useState('');
+    const [to, setTo] = React.useState('');
+    const [cache, setCache] = React.useState({});
+    const [loading, setLoading] = React.useState(false);
+    const [sel, setSel] = React.useState(null); // {code, date}
+
+    React.useEffect(() => {
+      (async () => {
+        const got = await loadKeysLimited([ENV_SNAP_INDEX_KEY, MARKET_SNAP_INDEX_KEY], 2);
+        const d = Array.isArray(got[ENV_SNAP_INDEX_KEY]) ? got[ENV_SNAP_INDEX_KEY].slice().sort() : [];
+        const md = Array.isArray(got[MARKET_SNAP_INDEX_KEY]) ? got[MARKET_SNAP_INDEX_KEY].slice().sort() : [];
+        setDates(d); setMDates(md);
+        if (d.length) { setTo(d[d.length-1]); setFrom(d[Math.max(0, d.length-8)]); }
+      })();
+    }, [ws]);
+
+    const range = (dates||[]).filter(d => d >= from && d <= to);
+    // 각 분석일에 대응하는 시장지표 스냅샷일(±3일 이내 가장 가까운 날)
+    const marketDateFor = d => {
+      let best = null, diff = Infinity;
+      const t = new Date(d).getTime();
+      mDates.forEach(m => { const x = Math.abs(new Date(m).getTime() - t); if (x < diff) { diff = x; best = m; } });
+      return diff <= 3*86400000 ? best : null;
+    };
+
+    React.useEffect(() => {
+      if (!range.length) return;
+      const keys = [];
+      range.forEach(d => {
+        targetCodes.forEach(c => keys.push(ws + ':env:' + c + '@' + d));
+        const md = marketDateFor(d);
+        if (md) MARKET_STAT_IDS.forEach(id => keys.push('market:' + id + '@' + md));
+      });
+      const need = keys.filter(k => !(k in cache));
+      if (!need.length) return;
+      let alive = true;
+      setLoading(true);
+      loadKeysLimited(need, 6).then(got => {
+        if (!alive) return;
+        const next = Object.assign({}, cache);
+        need.forEach(k => { next[k] = got[k] || null; });
+        setCache(next); setLoading(false);
+      });
+      return () => { alive = false; };
+    }, [from, to, dates, mDates]);
+
+    if (dates === null) return React.createElement('div',{className:'py-16 text-center text-sm text-slate-400'},'누적 이력을 불러오는 중...');
+    if (dates.length === 0) return React.createElement('div',{className:'py-16 text-center bg-white border border-slate-200 rounded-xl'},
+      React.createElement('div',{className:'text-3xl mb-2'},'🗂️'),
+      React.createElement('p',{className:'text-slate-600 font-medium mb-1'},'아직 누적된 분석 이력이 없습니다'),
+      React.createElement('p',{className:'text-xs text-slate-400'},'다음 주간 자동분석부터 회차별로 보관되며, 이 화면에서 기간을 골라 비교할 수 있습니다.')
+    );
+
+    const fmtD = d => d.slice(5).replace('-','.');
+    const toneLabel = { risk:'주의', good:'양호', neutral:'보통' };
+    const toneCls = { risk:'bg-rose-50 text-rose-700 border-rose-200', good:'bg-emerald-50 text-emerald-700 border-emerald-200', neutral:'bg-slate-50 text-slate-600 border-slate-200' };
+    const trendIcon = d => d==='improving'?'📈':d==='worsening'?'📉':d==='new'?'🆕':'';
+    const thCls = 'px-2 py-2 text-[11px] font-semibold text-slate-500 text-center whitespace-nowrap border-b border-slate-200';
+    const stickyCls = 'sticky left-0 z-10 bg-white px-3 py-2 text-left whitespace-nowrap border-b border-slate-100';
+
+    const selectEl = (val, set, opts) => React.createElement('select',{
+      value:val, onChange:e=>{ set(e.target.value); setSel(null); },
+      className:'text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white'
+    }, opts.map(d => React.createElement('option',{key:d,value:d}, d)));
+
+    // 선택 셀 상세
+    let detail = null;
+    if (sel) {
+      const e = cache[ws + ':env:' + sel.code + '@' + sel.date];
+      const a = e?.analysis;
+      if (a) detail = React.createElement('div',{className:'mt-3 bg-blue-50/50 border border-blue-100 rounded-xl p-4 text-sm'},
+        React.createElement('div',{className:'flex items-center justify-between mb-2'},
+          React.createElement('p',{className:'font-bold text-slate-800'}, (indByCode[sel.code]?.name || sel.code) + ' · ' + sel.date + ' 분석'),
+          React.createElement('button',{className:'text-xs text-slate-400 hover:text-slate-600',onClick:()=>setSel(null)},'닫기 ✕')
+        ),
+        React.createElement('p',{className:'text-slate-700 leading-relaxed mb-2'}, a.summary),
+        a.factors && React.createElement('ul',{className:'text-xs text-slate-600 space-y-0.5 mb-2'},
+          a.factors.map((f,i)=>React.createElement('li',{key:i},
+            React.createElement('span',{className:f.impact==='positive'?'text-emerald-600':f.impact==='negative'?'text-rose-600':'text-slate-500'},'● '),
+            React.createElement('b',null,f.name),' – ',f.description))
+        ),
+        a.outlook && React.createElement('p',{className:'text-xs text-blue-900'}, React.createElement('b',null,'전망 '), a.outlook),
+        a.trend?.description && React.createElement('p',{className:'text-xs text-slate-500 mt-1'}, '전주 대비: ' + a.trend.description)
+      );
+    }
+
+    const aiTable = React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl overflow-hidden'},
+      React.createElement('div',{className:'px-4 pt-4 pb-2 flex items-center justify-between'},
+        React.createElement('h3',{className:'text-sm font-bold text-slate-700'},'🤖 지표별 AI 판정 추이'),
+        React.createElement('p',{className:'text-[11px] text-slate-400'},'칸을 누르면 해당 회차 분석 내용 표시')
+      ),
+      React.createElement('div',{className:'overflow-x-auto'},
+        React.createElement('table',{className:'min-w-full text-xs'},
+          React.createElement('thead',null, React.createElement('tr',null,
+            React.createElement('th',{className:'sticky left-0 z-10 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-500 border-b border-slate-200'},'지표'),
+            range.map(d => React.createElement('th',{key:d,className:thCls}, fmtD(d)))
+          )),
+          React.createElement('tbody',null, targetCodes.map(code => React.createElement('tr',{key:code},
+            React.createElement('td',{className:stickyCls},
+              React.createElement('span',{className:'text-[10px] text-slate-400 font-mono mr-1'},code),
+              React.createElement('span',{className:'font-medium text-slate-800'}, indByCode[code]?.name || code)
+            ),
+            range.map(d => {
+              const k = ws + ':env:' + code + '@' + d;
+              const e = cache[k];
+              const tone = envTrendTone(e?.analysis);
+              const active = sel && sel.code===code && sel.date===d;
+              return React.createElement('td',{key:d,className:'px-1.5 py-1.5 text-center border-b border-slate-100'},
+                !(k in cache) ? React.createElement('span',{className:'text-slate-300'},'…')
+                : !tone ? React.createElement('span',{className:'text-slate-300'},'-')
+                : React.createElement('button',{
+                    onClick:()=>setSel(active?null:{code,date:d}),
+                    title:e.analysis.summary,
+                    className:'inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[11px] font-semibold '+toneCls[tone]+(active?' ring-2 ring-blue-400':'')
+                  }, toneLabel[tone], trendIcon(e.analysis.trend?.direction) && React.createElement('span',{className:'text-[10px]'}, trendIcon(e.analysis.trend.direction)))
+              );
+            })
+          )))
+        )
+      )
+    );
+
+    const anyMarket = range.some(d => marketDateFor(d));
+    const marketTable = anyMarket && React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl overflow-hidden'},
+      React.createElement('div',{className:'px-4 pt-4 pb-2'},
+        React.createElement('h3',{className:'text-sm font-bold text-slate-700'},'📊 주요 시장지표 추이'),
+        React.createElement('p',{className:'text-[11px] text-slate-400 mt-0.5'},'각 회차 수집 시점의 최신 공표값 (괄호: 기준월)')
+      ),
+      React.createElement('div',{className:'overflow-x-auto'},
+        React.createElement('table',{className:'min-w-full text-xs'},
+          React.createElement('thead',null, React.createElement('tr',null,
+            React.createElement('th',{className:'sticky left-0 z-10 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-500 border-b border-slate-200'},'지표'),
+            range.map(d => React.createElement('th',{key:d,className:thCls}, fmtD(d)))
+          )),
+          React.createElement('tbody',null, MARKET_GROUPS.flatMap(g => g.ids).map(id => {
+            let name = MARKET_TREND_NAMES[id] || id;
+            range.forEach(d => { const md = marketDateFor(d); const s = md && cache['market:'+id+'@'+md]; if (s?.name) name = s.name; });
+            return React.createElement('tr',{key:id},
+              React.createElement('td',{className:stickyCls+' font-medium text-slate-800'}, name),
+              range.map(d => {
+                const md = marketDateFor(d);
+                const s = md ? cache['market:'+id+'@'+md] : null;
+                const asOf = s?.asOf ? String(s.asOf) : '';
+                const asOfShort = asOf.length >= 6 ? asOf.slice(2,4)+'.'+asOf.slice(4,6) : '';
+                return React.createElement('td',{key:d,className:'px-2 py-1.5 text-center border-b border-slate-100 whitespace-nowrap'},
+                  s ? React.createElement('span',null,
+                        React.createElement('span',{className:'font-semibold text-slate-700'}, fmtMarketVal(s)),
+                        asOfShort && React.createElement('span',{className:'text-[10px] text-slate-400 ml-0.5'},'('+asOfShort+')'))
+                    : React.createElement('span',{className:'text-slate-300'},'-'));
+              })
+            );
+          }))
+        )
+      )
+    );
+
+    return React.createElement('div',{className:'space-y-4'},
+      React.createElement('div',{className:'bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-2'},
+        React.createElement('span',{className:'text-sm font-bold text-slate-700 mr-1'},'📅 조회 기간'),
+        selectEl(from, v=>{ setFrom(v); if (v > to) setTo(v); }, dates),
+        React.createElement('span',{className:'text-slate-400'},'~'),
+        selectEl(to, v=>{ setTo(v); if (v < from) setFrom(v); }, dates),
+        React.createElement('span',{className:'text-xs text-slate-400 ml-1'}, range.length+'회차 · 누적 '+dates.length+'회차 ('+dates[0]+' ~ '+dates[dates.length-1]+')'),
+        loading && React.createElement('span',{className:'text-xs text-blue-500 ml-auto'},'불러오는 중...')
+      ),
+      aiTable,
+      detail,
+      marketTable
+    );
+  }
+
   function AiAnalysisTab({ ws, indicators, data, indicatorStatus }) {
     const [envMap, setEnvMap] = React.useState({});
+    const [envView, setEnvView] = React.useState('latest');
     const [loading, setLoading] = React.useState(true);
     const [openCode, setOpenCode] = React.useState(null);
     const targetCodes = ENV_TARGET_CODES[ws] || [];
@@ -1054,8 +1261,20 @@ const Presentation = makeIcon([["path", {
       );
     };
 
+    const viewToggle = React.createElement('div',{className:'flex gap-1 bg-slate-100 p-1 rounded-xl w-fit'},
+      [['latest','이번 주 분석'],['trend','기간별 추이']].map(([v,l]) => React.createElement('button',{key:v,
+        onClick:()=>setEnvView(v),
+        className:'px-4 py-1.5 text-sm rounded-lg font-semibold transition-colors '+(envView===v?'bg-white text-slate-900 shadow-sm':'text-slate-500 hover:text-slate-700')
+      }, l))
+    );
+    if (envView === 'trend') return React.createElement('div',{className:'space-y-6'},
+      header, viewToggle,
+      React.createElement(EnvTrendView, { ws, targetCodes, indByCode })
+    );
+
     return React.createElement('div',{className:'space-y-8'},
       header,
+      viewToggle,
       React.createElement(MarketStatsPanel),
       summaryCard,
       React.createElement('div',{className:'pt-2 border-t border-slate-200'},
