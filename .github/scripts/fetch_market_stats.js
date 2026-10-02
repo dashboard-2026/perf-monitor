@@ -282,6 +282,47 @@ async function saveToSupabase(id, payload){
   if(!res.ok) throw new Error('Supabase: ' + await res.text());
 }
 
+// ── 주간 스냅샷(누적 보관) ───────────────────────────────────
+// 최신본(market:id)은 덮어쓰고, 날짜 키(market:id@YYYY-MM-DD)로도 저장. 날짜 목록은 market:_snapshots
+function kstDate(d){ return new Date(new Date(d).getTime() + 9*3600*1000).toISOString().slice(0,10); }
+const RUN_DATE = kstDate(Date.now());
+const snapDates = new Set();
+
+async function sbGetMarket(id){
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/market_stats?id=eq.${encodeURIComponent(id)}&select=payload`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const p = rows[0]?.payload;
+    if (p === null || p === undefined) return null;
+    return typeof p === 'string' ? JSON.parse(p) : p;
+  } catch(e){ return null; }
+}
+
+// 최신본 저장 + 스냅샷 저장 (덮어쓰기 전 지난 값도 날짜 키로 보존)
+async function saveWithSnapshot(id, payload){
+  const prev = await sbGetMarket('market:' + id);
+  if (prev?.updatedAt) {
+    const d = kstDate(prev.updatedAt);
+    if (d !== RUN_DATE) {
+      try { await saveToSupabase(`market:${id}@${d}`, prev); snapDates.add(d); } catch(e){}
+    }
+  }
+  await saveToSupabase('market:' + id, payload);
+  await saveToSupabase(`market:${id}@${RUN_DATE}`, payload);
+  snapDates.add(RUN_DATE);
+}
+
+async function updateSnapshotIndex(){
+  if (snapDates.size === 0) return;
+  const existing = await sbGetMarket('market:_snapshots');
+  const all = new Set(Array.isArray(existing) ? existing : []);
+  snapDates.forEach(d => all.add(d));
+  await saveToSupabase('market:_snapshots', [...all].sort());
+}
+
 // ── 메인 실행 ────────────────────────────────────────────────
 (async () => {
   console.log(`\n📊 시장 통계 수집 시작 — ${new Date().toLocaleString('ko-KR')}\n`);
@@ -292,7 +333,7 @@ async function saveToSupabase(id, payload){
     try {
       process.stdout.write(`[한국은행] ${stat.name}...`);
       const result = await fetchEcosStat(stat);
-      await saveToSupabase('market:' + stat.id, { ...result, source:'ecos', updatedAt });
+      await saveWithSnapshot(stat.id, { ...result, source:'ecos', updatedAt });
       console.log(` ✅ ${result.value}${result.unit} (${result.asOf})`);
       ok++;
     } catch(e) {
@@ -306,7 +347,7 @@ async function saveToSupabase(id, payload){
     try {
       process.stdout.write(`[부동산원] ${stat.name}...`);
       const result = await fetchRebStat(stat);
-      await saveToSupabase('market:' + stat.id, { ...result, source:'reb', updatedAt });
+      await saveWithSnapshot(stat.id, { ...result, source:'reb', updatedAt });
       console.log(` ✅ ${result.value} (${result.asOf})`);
       ok++;
     } catch(e) {
@@ -320,7 +361,7 @@ async function saveToSupabase(id, payload){
     try {
       process.stdout.write(`[KOSIS] ${stat.name}...`);
       const result = await fetchKosisStat(stat);
-      await saveToSupabase('market:' + stat.id, { ...result, source:'kosis', updatedAt });
+      await saveWithSnapshot(stat.id, { ...result, source:'kosis', updatedAt });
       console.log(` ✅ ${result.value}${result.unit} (${result.asOf})`);
       ok++;
     } catch(e) {
@@ -330,6 +371,7 @@ async function saveToSupabase(id, payload){
     await sleep(500);
   }
 
+  try { await updateSnapshotIndex(); } catch(e){ console.log(`스냅샷 목록 갱신 실패: ${e.message.slice(0,200)}`); }
   console.log(`\n완료 — 성공 ${ok}, 실패 ${fail}`);
   if (fail > 0 && ok === 0) process.exit(1);
 })();
