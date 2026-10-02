@@ -441,14 +441,50 @@ factors는 2~4개로 작성하세요.`;
   throw lastErr;
 }
 
-async function saveToSupabase(ws, code, analysis, news){
-  const payload = { analysis, news, analyzedAt: new Date().toISOString() };
+// env_analysis 범용 upsert (id 지정)
+async function upsertEnv(id, payloadObj){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/env_analysis`,{
     method:'POST',
     headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,'Prefer':'resolution=merge-duplicates'},
-    body: JSON.stringify({ id:`${ws}:env:${code}`, payload: JSON.stringify(payload) })
+    body: JSON.stringify({ id, payload: JSON.stringify(payloadObj) })
   });
   if(!res.ok) throw new Error('Supabase: '+await res.text());
+}
+
+// ── 주간 스냅샷(누적 보관) ─────────────────────────────────────
+// 최신본 키(ws:env:code)는 그대로 덮어쓰고, 같은 내용을 날짜 키(ws:env:code@YYYY-MM-DD)로도 저장해 이력 누적
+// 스냅샷 날짜 목록은 sys:env:_snapshots 에 배열로 보관 (앱의 기간 선택에 사용)
+const SNAP_INDEX_KEY = 'sys:env:_snapshots';
+function kstDate(d){ return new Date(new Date(d).getTime() + 9*3600*1000).toISOString().slice(0,10); }
+const RUN_DATE = kstDate(Date.now());
+const snapDates = new Set();
+
+async function saveToSupabase(ws, code, analysis, news){
+  const payload = { analysis, news, analyzedAt: new Date().toISOString() };
+  await upsertEnv(`${ws}:env:${code}`, payload);              // 최신본(기존과 동일)
+  await upsertEnv(`${ws}:env:${code}@${RUN_DATE}`, payload);  // 이번 주 스냅샷
+  snapDates.add(RUN_DATE);
+}
+
+// 지난주 결과를 덮어쓰기 전에 스냅샷으로 보존 (스냅샷 도입 이전 데이터 1회분 소급 보관용)
+async function backupPrevious(ws, code, previous){
+  if (!previous?.analyzedAt) return;
+  const d = kstDate(previous.analyzedAt);
+  if (d === RUN_DATE) return;
+  try {
+    await upsertEnv(`${ws}:env:${code}@${d}`, previous);
+    snapDates.add(d);
+  } catch(e){ console.log(`   (이전 결과 보존 실패: ${e.message.slice(0,100)})`); }
+}
+
+async function updateSnapshotIndex(){
+  if (snapDates.size === 0) return;
+  const existing = await sbGet('env_analysis', SNAP_INDEX_KEY);
+  const all = new Set(Array.isArray(existing) ? existing : []);
+  snapDates.forEach(d => all.add(d));
+  const list = [...all].sort();
+  await upsertEnv(SNAP_INDEX_KEY, list);
+  console.log(`스냅샷 날짜 목록 갱신 — 총 ${list.length}회분 (${list[0]} ~ ${list[list.length-1]})`);
 }
 
 (async ()=>{
@@ -476,6 +512,7 @@ async function saveToSupabase(ws, code, analysis, news){
       process.stdout.write(`[${ind.code}] ${ind.name}...`);
       const news = await searchNewsMulti(ind.keywords);
       const previous = await fetchPreviousAnalysis(ind.ws, ind.code);
+      await backupPrevious(ind.ws, ind.code, previous);
       await sleep(300);
       const analysis = await analyzeWithGemini(ind.name, ind.desc, news, previous, ind.code, marketCtx, perfCtx[`${ind.ws}:${ind.code}`]);
       await sleep(1000);
@@ -488,6 +525,7 @@ async function saveToSupabase(ws, code, analysis, news){
     }
     await sleep(500);
   }
+  try { await updateSnapshotIndex(); } catch(e){ console.log(`스냅샷 목록 갱신 실패: ${e.message.slice(0,200)}`); }
   console.log(`\n완료 — 성공 ${ok}, 실패 ${fail}`);
   console.log(`API 사용량 — 네이버 뉴스 검색: ${searchCallCount}회(한도 25,000/일), Gemini: ${geminiCallCount}회(한도 1500/일)`);
   if(fail>0 && ok===0) process.exit(1);
